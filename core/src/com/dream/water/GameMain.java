@@ -8,6 +8,8 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
@@ -33,6 +35,7 @@ public class GameMain extends ApplicationAdapter {
 	World world;
 	BodyContact contacts;
 	Box2DDebugRenderer debugRenderer;
+	ShapeRenderer shapeRenderer;
 
 	@Override
 	public void create() {
@@ -40,6 +43,9 @@ public class GameMain extends ApplicationAdapter {
 
 		camera = new OrthographicCamera();
 		stage = new Stage(new StretchViewport(4f, 2f, camera));
+		shapeRenderer = new ShapeRenderer();
+		shapeRenderer.setProjectionMatrix(camera.combined);
+		shapeRenderer.setColor(1, 1, 0, 1);
 
 		// Create box2d world
 		world = new World(new Vector2(0, -10), true);
@@ -60,8 +66,12 @@ public class GameMain extends ApplicationAdapter {
 		if(Gdx.input.justTouched()){
 			createBody();
 		}
+
+		world.step(1/60f, 6, 2);
+		debugRenderer.render(world, camera.combined);
 		
 		//*********************
+		shapeRenderer.begin(ShapeType.Line);
 		for(Pair<Fixture, Fixture> pair : contacts.getFixturePairs()){
 			Fixture fixtureA = pair.getKey();
 			Fixture fixtureB = pair.getValue();
@@ -70,6 +80,15 @@ public class GameMain extends ApplicationAdapter {
 			
 			List<Vector2> intersectionPoints = new ArrayList<Vector2>();
 			if(IntersectionUtils.findIntersectionOfFixtures(fixtureA, fixtureB, intersectionPoints)){
+				
+				//add lines to draw the intersection in debug
+				for(int i = 0; i<intersectionPoints.size(); i++){
+					if(i != intersectionPoints.size()-1)
+						shapeRenderer.line(intersectionPoints.get(i), intersectionPoints.get(i+1));
+					else
+						shapeRenderer.line(intersectionPoints.get(i), intersectionPoints.get(0));
+				}
+				
 				//find centroid
 				float area = IntersectionUtils.getArea(intersectionPoints);
 				Vector2 centroid = IntersectionUtils.getCentroid(intersectionPoints);
@@ -128,15 +147,14 @@ public class GameMain extends ApplicationAdapter {
                     fixtureB.getBody().applyForce(liftForce, midPoint, false);
                 }
 				
-				
+                //line showing buoyancy force
+                /*if(area > 0){
+        			shapeRenderer.line(centroid.x, centroid.y, centroid.x, centroid.y + area);
+        		}*/
 			}
 			
 		}
-		
-		//*********************
-		
-		world.step(1/60f, 6, 2);
-		debugRenderer.render(world, camera.combined);
+		shapeRenderer.end();
 		
 	}
 
@@ -155,14 +173,21 @@ public class GameMain extends ApplicationAdapter {
 
 		// Create a circle shape and set its radius to 6
 		PolygonShape square = new PolygonShape();
-		square.setAsBox(0.5f, 0.2f);
+		//square.setAsBox(0.5f, 0.3f);
+		Vector2[] vertices = new Vector2[5];
+		vertices[0] = (new Vector2(1f, 1.2f));
+		vertices[1]= (new Vector2(1.4f, 1.2f));
+		vertices[2]= (new Vector2(1.4f, 0.8f));
+		vertices[3]= (new Vector2(1.1f, 0f));
+		vertices[4]= (new Vector2(1f, 0.8f));
+		square.set((Vector2[]) vertices);
 
 		// Create a fixture definition to apply our shape to
 		FixtureDef fixtureDef = new FixtureDef();
 		fixtureDef.shape = square;
-		fixtureDef.density = 1.000000000000000e+00f;
-		fixtureDef.friction = 2.000000029802322e-01f;
-		fixtureDef.restitution = 0.000000000000000e+00f; // Make it bounce a
+		fixtureDef.density = 0.5f;
+		fixtureDef.friction = 0.5f;
+		fixtureDef.restitution = 0.5f; // Make it bounce a
 															// little bit
 
 		// Create our fixture and attach it to the body
@@ -192,9 +217,9 @@ public class GameMain extends ApplicationAdapter {
 		// Create a fixture definition to apply our shape to
 		FixtureDef fixtureDef = new FixtureDef();
 		fixtureDef.shape = square;
-		fixtureDef.density = 2.000000000000000e+00f;
-		fixtureDef.friction = 2.000000000000000e+00f;
-		fixtureDef.restitution = 0.000000000000000e+00f; // Make it bounce a
+		fixtureDef.density = 1f;
+		fixtureDef.friction = 0.5f;
+		fixtureDef.restitution = 0.5f; // Make it bounce a
 															// little bit
 		fixtureDef.isSensor = true;
 
