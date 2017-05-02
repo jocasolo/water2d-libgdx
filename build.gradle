@@ -50,6 +50,7 @@ project(":core") {
     dependencies {
         compile "com.badlogicgames.gdx:gdx:$gdxVersion"
         compile "com.badlogicgames.gdx:gdx-box2d:$gdxVersion"
+        compile group: 'math.geom2d', name: 'javaGeom', version: '0.11.1'
     }
 }
 

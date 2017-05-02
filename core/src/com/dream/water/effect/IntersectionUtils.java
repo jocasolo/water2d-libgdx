@@ -4,11 +4,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.physics.box2d.Box2D;
 import com.badlogic.gdx.physics.box2d.Fixture;
 import com.badlogic.gdx.physics.box2d.PolygonShape;
 import com.badlogic.gdx.physics.box2d.Shape;
-import com.badlogic.gdx.physics.box2d.utils.Box2DBuild;
+
+import math.geom2d.polygon.SimplePolygon2D;
+import math.geom2d.*;
 
 public class IntersectionUtils {
 
@@ -77,38 +78,21 @@ public class IntersectionUtils {
 		return !outputVertices.isEmpty();
 	}
 
-	public static Vector2 getCentroid(List<Vector2> vertices) {
-		Vector2 centroid = new Vector2(0, 0);
-
-		for (Vector2 vertex : vertices) {
-			centroid.x += vertex.x;
-			centroid.y += vertex.y;
+	public static SimplePolygon2D getIntersectionPolygon(List<Vector2> vertices) {
+		
+		List<Point2D> points = new ArrayList<Point2D>();
+		for(Vector2 vertex : vertices){
+			points.add(new Point2D(vertex.x, vertex.y));
 		}
-		return new Vector2(centroid.x / vertices.size(), centroid.y / vertices.size());
+		
+		return new SimplePolygon2D(points);
 	}
 
-	public static float getArea(List<Vector2> vertices) {
-		float sum = 0;
-
-		for (int i = 0; i < vertices.size(); i++) {
-			if (i == 0) {
-				sum += vertices.get(i).x * (vertices.get(i + 1).y - vertices.get(vertices.size() - 1).y);
-			} else if (i == vertices.size() - 1) {
-				sum += vertices.get(i).x * (vertices.get(0).y - vertices.get(i - 1).y);
-			} else {
-				sum += vertices.get(i).x * (vertices.get(i + 1).y - vertices.get(i - 1).y);
-			}
-		}
-
-		float area = 0.5f * Math.abs(sum);
-		return area;
-	}
-	
-	public static Vector2 min(Vector2 a, Vector2 b){
+	public static Vector2 min(Vector2 a, Vector2 b) {
 		return new Vector2(min(a.x, b.x), min(b.x, b.y));
 	}
-	
-	public static float min(float a, float b){
+
+	public static float min(float a, float b) {
 		return a < b ? a : b;
 	}
 }

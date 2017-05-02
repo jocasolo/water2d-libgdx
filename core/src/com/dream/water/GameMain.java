@@ -25,6 +25,8 @@ import com.dream.water.effect.BodyContact;
 import com.dream.water.effect.IntersectionUtils;
 
 import javafx.util.Pair;
+import math.geom2d.Point2D;
+import math.geom2d.polygon.SimplePolygon2D;
 
 public class GameMain extends ApplicationAdapter {
 	SpriteBatch batch;
@@ -42,7 +44,7 @@ public class GameMain extends ApplicationAdapter {
 		batch = new SpriteBatch();
 
 		camera = new OrthographicCamera();
-		stage = new Stage(new StretchViewport(4f, 2f, camera));
+		stage = new Stage(new StretchViewport(Gdx.graphics.getWidth() / 100, Gdx.graphics.getHeight() / 100, camera));
 		shapeRenderer = new ShapeRenderer();
 		shapeRenderer.setProjectionMatrix(camera.combined);
 		shapeRenderer.setColor(1, 1, 0, 1);
@@ -67,9 +69,6 @@ public class GameMain extends ApplicationAdapter {
 			createBody();
 		}
 
-		world.step(1/60f, 6, 2);
-		debugRenderer.render(world, camera.combined);
-		
 		//*********************
 		shapeRenderer.begin(ShapeType.Line);
 		for(Pair<Fixture, Fixture> pair : contacts.getFixturePairs()){
@@ -89,27 +88,17 @@ public class GameMain extends ApplicationAdapter {
 						shapeRenderer.line(intersectionPoints.get(i), intersectionPoints.get(0));
 				}
 				
-				//find centroid
-				float area = IntersectionUtils.getArea(intersectionPoints);
-				Vector2 centroid = IntersectionUtils.getCentroid(intersectionPoints);
+				//find centroid and area
+				SimplePolygon2D interPolygon = IntersectionUtils.getIntersectionPolygon(intersectionPoints);
+				Point2D centroidPoint = interPolygon.centroid();
+				Vector2 centroid = new Vector2((float) centroidPoint.x(), (float) centroidPoint.y());
+				float area = (float) interPolygon.area();
+				
 				
 				//apply buoyancy force (fixtureA is the fluid)
 				float displacedMass = fixtureA.getDensity() * area;
 				Vector2 buoyancyForce = new Vector2(displacedMass * -world.getGravity().x, displacedMass * -world.getGravity().y);
 				fixtureB.getBody().applyForce(buoyancyForce, centroid, false);
-				
-				//find relative velocity between object and fluid
-				/*Vector2 velDir = new Vector2(fixtureB.getBody().getLinearVelocityFromWorldPoint(centroid).sub(fixtureA.getBody().getLinearVelocityFromWorldPoint(centroid)));
-		        float vel = velDir.nor().len();
-		      
-			    //apply simple linear drag
-			    float dragMag = fixtureA.getDensity() * vel * vel;
-			    Vector2 dragForce = new Vector2(dragMag * -velDir.x, dragMag * -velDir.y);
-			    fixtureB.getBody().applyForce(dragForce, centroid, false);
-			    
-			    //apply simple angular drag
-			    float angularDrag = area * -fixtureB.getBody().getAngularVelocity();
-			    fixtureB.getBody().applyTorque(angularDrag, false);*/
 				
 				float dragMod = 0.25f; 	//adjust as desired
                 float liftMod = 0.25f; 	//adjust as desired
@@ -148,14 +137,16 @@ public class GameMain extends ApplicationAdapter {
                 }
 				
                 //line showing buoyancy force
-                /*if(area > 0){
+                if(area > 0){
         			shapeRenderer.line(centroid.x, centroid.y, centroid.x, centroid.y + area);
-        		}*/
+        		}
 			}
 			
 		}
 		shapeRenderer.end();
 		
+		world.step(1/60f, 6, 2);
+		debugRenderer.render(world, camera.combined);
 	}
 
 	private void createBody() {
@@ -167,28 +158,30 @@ public class GameMain extends ApplicationAdapter {
 		// Set our body's starting position in the world
 		Vector2 position = new Vector2(Gdx.input.getX() / 100f, camera.viewportHeight - Gdx.input.getY() / 100f);
 		bodyDef.position.set(Gdx.input.getX() / 100f, camera.viewportHeight - Gdx.input.getY() / 100f);
-
+		float x = Gdx.input.getX() / 100f;
+		float y = camera.viewportHeight - Gdx.input.getY() / 100f;
 		// Create our body in the world using our body definition
 		Body body = world.createBody(bodyDef);
 
 		// Create a circle shape and set its radius to 6
 		PolygonShape square = new PolygonShape();
-		//square.setAsBox(0.5f, 0.3f);
-		Vector2[] vertices = new Vector2[5];
-		vertices[0] = (new Vector2(1f, 1.2f));
-		vertices[1]= (new Vector2(1.4f, 1.2f));
-		vertices[2]= (new Vector2(1.4f, 0.8f));
-		vertices[3]= (new Vector2(1.1f, 0f));
-		vertices[4]= (new Vector2(1f, 0.8f));
-		square.set((Vector2[]) vertices);
+		square.setAsBox(0.5f, 0.3f);
+		/*Vector2[] vertices = new Vector2[7];
+		vertices[0] = new Vector2(x-0.5f, y-0.2f);
+		vertices[1]= new Vector2(x-0.2f, y-0.2f);
+		vertices[2]= new Vector2(x+0.2f, y-0.2f);
+		vertices[3]= new Vector2(x+0.5f, y-0.2f);
+		vertices[4]= new Vector2(x-0.2f, y);
+		vertices[5]= new Vector2(x+0.2f, y);
+		vertices[6]= (new Vector2(x, y-0.1f));
+		square.set((Vector2[]) vertices);*/
 
 		// Create a fixture definition to apply our shape to
 		FixtureDef fixtureDef = new FixtureDef();
 		fixtureDef.shape = square;
 		fixtureDef.density = 0.5f;
 		fixtureDef.friction = 0.5f;
-		fixtureDef.restitution = 0.5f; // Make it bounce a
-															// little bit
+		fixtureDef.restitution = 0.5f; // Make it bounce a little bit
 
 		// Create our fixture and attach it to the body
 		Fixture fixture = body.createFixture(fixtureDef);
