@@ -6,12 +6,26 @@ import java.util.Random;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.physics.box2d.Body;
+import com.badlogic.gdx.physics.box2d.BodyDef;
+import com.badlogic.gdx.physics.box2d.BodyDef.BodyType;
+import com.badlogic.gdx.physics.box2d.Fixture;
+import com.badlogic.gdx.physics.box2d.FixtureDef;
+import com.badlogic.gdx.physics.box2d.PolygonShape;
+import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.utils.Predicate;
+
+import javafx.util.Pair;
+import math.geom2d.Point2D;
+import math.geom2d.polygon.SimplePolygon2D;
 
 public class Water {
 
 	private List<WaterColumn> columns = new ArrayList<WaterColumn>(201);
 	List<Particle> particles = new ArrayList<Particle>();
+	private Body body; // Box2d body
+	
+	private MyContactListener contacts;
 
 	private static Random rand = new Random();
 
@@ -21,8 +35,7 @@ public class Water {
 
 	Predicate<Particle> predicate;
 
-	public Water() {
-		
+	public Water(){
 		predicate = new Predicate<Particle>() {
 			@Override
 			public boolean evaluate(Particle p) {
@@ -35,8 +48,105 @@ public class Water {
 			columns.add(new WaterColumn(240, 240, 0));
 		}
 	}
+	
+	public void createBody(World world, float x, float y, float width, float height, float density) {
+		BodyDef bodyDef = new BodyDef();
+		bodyDef.type = BodyType.StaticBody;
+		bodyDef.position.set(x, y);
 
-	public void update() {
+		// Create our body in the world using our body definition
+		body = world.createBody(bodyDef);
+
+		// Create a circle shape and set its radius to 6
+		PolygonShape square = new PolygonShape();
+		square.setAsBox(width, height);
+
+		// Create a fixture definition to apply our shape to
+		FixtureDef fixtureDef = new FixtureDef();
+		fixtureDef.shape = square;
+		fixtureDef.density = density;
+		
+		// Must be a sensor
+		fixtureDef.isSensor = true;
+
+		// Create our fixture and attach it to the body
+		body.createFixture(fixtureDef);
+
+		square.dispose();
+	}
+	
+	public void setContactListener(MyContactListener contacts){
+		this.contacts = contacts; 
+	}
+	
+	public void update(){
+		
+		if(body != null && contacts != null){
+			World world = body.getWorld();
+			for(Pair<Fixture, Fixture> pair : contacts.getFixturePairs()){
+				Fixture fixtureA = pair.getKey();
+				Fixture fixtureB = pair.getValue();
+				
+				float density = fixtureA.getDensity();
+				
+				List<Vector2> intersectionPoints = new ArrayList<Vector2>();
+				if(IntersectionUtils.findIntersectionOfFixtures(fixtureA, fixtureB, intersectionPoints)){
+					
+					//find centroid and area
+					SimplePolygon2D interPolygon = IntersectionUtils.getIntersectionPolygon(intersectionPoints);
+					Point2D centroidPoint = interPolygon.centroid();
+					Vector2 centroid = new Vector2((float) centroidPoint.x(), (float) centroidPoint.y());
+					float area = (float) interPolygon.area();
+					
+					
+					//apply buoyancy force (fixtureA is the fluid)
+					float displacedMass = fixtureA.getDensity() * area;
+					Vector2 buoyancyForce = new Vector2(displacedMass * -world.getGravity().x, displacedMass * -world.getGravity().y);
+					fixtureB.getBody().applyForce(buoyancyForce, centroid, true);
+					
+					float dragMod = 0.25f; 	//adjust as desired
+	                float liftMod = 0.25f; 	//adjust as desired
+	                float maxDrag = 2000;  	//adjust as desired
+	                float maxLift = 500;   	//adjust as desired
+	                for (int i = 0; i < intersectionPoints.size(); i++) {
+	                    Vector2 v0 = intersectionPoints.get(i);
+	                    Vector2 v1 = intersectionPoints.get((i+1)%intersectionPoints.size());
+	                    Vector2 sum = v0.add(v1);
+	                    Vector2 midPoint = new Vector2(0.5f * sum.x, 0.5f * sum.y);
+
+	                    //find relative velocity between object and fluid at edge midpoint
+	                    Vector2 velDir = fixtureB.getBody().getLinearVelocityFromWorldPoint( midPoint ).sub(fixtureA.getBody().getLinearVelocityFromWorldPoint(midPoint));
+	                    float vel = velDir.nor().len();
+
+	                    Vector2 edge = v1.sub(v0);
+	                    float edgeLength = edge.nor().len();
+	                    Vector2 normal = new Vector2(-(-1) * edge.y, -1 * edge.x);
+	                    float dragDot = normal.x * velDir.x + normal.y * velDir.y;
+	                    if ( dragDot < 0 )
+	                        continue;//normal points backwards - this is not a leading edge
+
+	                    //apply drag
+	                    float dragMag = dragDot * dragMod * edgeLength * density * vel * vel;
+	                    dragMag = IntersectionUtils.min(dragMag, maxDrag);
+	                    Vector2 dragForce = new Vector2(dragMag * -velDir.x, dragMag * -velDir.y);
+	                    fixtureB.getBody().applyForce(dragForce, midPoint, true);
+
+	                    //apply lift
+	                    float liftDot = edge.x * velDir.x + edge.y * velDir.y;
+	                    float liftMag =  dragDot * liftDot * liftMod * edgeLength * density * vel * vel;
+	                    liftMag = IntersectionUtils.min(liftMag, maxLift);
+	                    Vector2 liftDir = new Vector2(-1 * velDir.y, 1 * velDir.x);
+	                    Vector2 liftForce = new Vector2(liftMag * liftDir.x, liftMag * liftDir.y);
+	                    fixtureB.getBody().applyForce(liftForce, midPoint, true);
+	                }
+					
+				}
+				
+			}
+		}
+	}
+
+	public void updateWaves() {
 		for (int i = 0; i < columns.size(); i++) {
 			columns.get(i).update(dampening, tension);
 		}

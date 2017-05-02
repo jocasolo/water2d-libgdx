@@ -5,13 +5,10 @@ import java.util.List;
 
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Fixture;
-import com.badlogic.gdx.physics.box2d.FixtureDef;
 import com.badlogic.gdx.physics.box2d.PolygonShape;
 import com.badlogic.gdx.physics.box2d.Shape;
 
 import math.geom2d.Point2D;
-import math.geom2d.conic.Circle2D;
-import math.geom2d.polygon.Polygon2D;
 import math.geom2d.polygon.SimplePolygon2D;
 
 public class IntersectionUtils {

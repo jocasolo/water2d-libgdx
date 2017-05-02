@@ -12,7 +12,7 @@ import com.badlogic.gdx.physics.box2d.Manifold;
 
 import javafx.util.Pair;
 
-public class BodyContact implements ContactListener {
+public class MyContactListener implements ContactListener {
 
 	private Set<Pair<Fixture, Fixture>> fixturePairs = new HashSet<Pair<Fixture, Fixture>>();
 	
