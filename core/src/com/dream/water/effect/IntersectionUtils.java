@@ -5,11 +5,14 @@ import java.util.List;
 
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Fixture;
+import com.badlogic.gdx.physics.box2d.FixtureDef;
 import com.badlogic.gdx.physics.box2d.PolygonShape;
 import com.badlogic.gdx.physics.box2d.Shape;
 
+import math.geom2d.Point2D;
+import math.geom2d.conic.Circle2D;
+import math.geom2d.polygon.Polygon2D;
 import math.geom2d.polygon.SimplePolygon2D;
-import math.geom2d.*;
 
 public class IntersectionUtils {
 
@@ -27,12 +30,24 @@ public class IntersectionUtils {
 	}
 
 	public static boolean findIntersectionOfFixtures(Fixture fA, Fixture fB, List<Vector2> outputVertices) {
-		// currently this only handles polygon vs polygon
-		if (fA.getShape().getType() != Shape.Type.Polygon || fB.getShape().getType() != Shape.Type.Polygon)
+		// currently this only handles polygon or circles
+		if (fA.getShape().getType() != Shape.Type.Polygon && fA.getShape().getType() != Shape.Type.Circle || 
+				fB.getShape().getType() != Shape.Type.Polygon && fB.getShape().getType() != Shape.Type.Circle)
 			return false;
-
-		PolygonShape polyA = (PolygonShape) fA.getShape();
-		PolygonShape polyB = (PolygonShape) fB.getShape();
+		
+		PolygonShape polyA = new PolygonShape();
+		PolygonShape polyB = new PolygonShape();
+		
+		// if there is a circle, convert to octagon
+		if(fA.getShape().getType() == Shape.Type.Circle) 
+			polyA = circleToSquare(fA);
+		else
+			polyA = (PolygonShape) fA.getShape();
+		
+		if(fB.getShape().getType() == Shape.Type.Circle)
+			polyB = circleToSquare(fB);
+		else
+			polyB = (PolygonShape) fB.getShape();
 
 		// fill subject polygon from fixtureA polygon
 		for (int i = 0; i < polyA.getVertexCount(); i++) {
@@ -86,6 +101,23 @@ public class IntersectionUtils {
 		}
 		
 		return new SimplePolygon2D(points);
+	}
+	
+	private static PolygonShape circleToSquare(Fixture fixture) {
+		Vector2 position = fixture.getBody().getLocalCenter();
+		float x = position.x;
+		float y = position .y;
+		float radius = fixture.getShape().getRadius();
+		
+		PolygonShape octagon = new PolygonShape();
+		Vector2[] vertices = new Vector2[4];
+		vertices[0] = new Vector2(x-radius, y+radius);
+		vertices[1]= new Vector2(x+radius, y+radius);
+		vertices[2]= new Vector2(x-radius, y-radius);
+		vertices[3]= new Vector2(x+radius, y-radius);
+		octagon.set((Vector2[]) vertices);
+
+		return octagon;
 	}
 
 	public static Vector2 min(Vector2 a, Vector2 b) {
