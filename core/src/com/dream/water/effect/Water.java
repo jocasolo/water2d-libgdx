@@ -17,11 +17,14 @@ import com.badlogic.gdx.utils.Predicate;
 
 import javafx.util.Pair;
 import math.geom2d.Point2D;
+import math.geom2d.line.Line2D;
+import math.geom2d.line.StraightLine2D;
 import math.geom2d.polygon.SimplePolygon2D;
 
 public class Water {
 
-	private List<WaterColumn> columns = new ArrayList<WaterColumn>(201);
+	private boolean waves = false;
+	private List<WaterColumn> columns; // for waves
 	List<Particle> particles = new ArrayList<Particle>();
 	private Body body; // Box2d body
 	
@@ -32,21 +35,13 @@ public class Water {
 	private final float tension = 0.025f;
 	private final float dampening = 0.025f;
 	private final float spread = 0.25f;
+	private final float columnSparation = 0.04f;
+	private final float rotateCorrection = 0.0627f;
 
 	Predicate<Particle> predicate;
-
-	public Water(){
-		predicate = new Predicate<Particle>() {
-			@Override
-			public boolean evaluate(Particle p) {
-				return p.getPosition().x >= 0 && p.getPosition().x <= 800
-						&& p.getPosition().y - 5 <= getHeight(p.getPosition().x); // ******************
-			}
-		};
-		
-		for (int i = 0; i < columns.size(); i++) {
-			columns.add(new WaterColumn(240, 240, 0));
-		}
+	
+	public Water(boolean waves){
+		this.setWaves(waves);
 	}
 	
 	public void createBody(World world, float x, float y, float width, float height, float density) {
@@ -57,9 +52,8 @@ public class Water {
 		// Create our body in the world using our body definition
 		body = world.createBody(bodyDef);
 
-		// Create a circle shape and set its radius to 6
 		PolygonShape square = new PolygonShape();
-		square.setAsBox(width, height);
+		square.setAsBox(width/2, height/2);
 
 		// Create a fixture definition to apply our shape to
 		FixtureDef fixtureDef = new FixtureDef();
@@ -73,6 +67,26 @@ public class Water {
 		body.createFixture(fixtureDef);
 
 		square.dispose();
+		
+		// Water columns (waves) *******************************************
+		if(waves){
+			int size = (int) (width / this.columnSparation);
+			columns = new ArrayList<WaterColumn>(size);
+			for (int i = 0; i < size; i++) {
+				float cx = i * this.columnSparation + x - width/2;
+				columns.add(new WaterColumn(cx, y-height/2, y+height/2, y+height/2, 0));
+			}
+			
+			final float w = width;
+			predicate = new Predicate<Particle>() {
+				@Override
+				public boolean evaluate(Particle p) {
+					return p.getPosition().x >= 0 && p.getPosition().x <= w
+							&& p.getPosition().y - 5 <= getHeight(p.getPosition().x); 
+				}
+			};
+		}
+		// *********************************************************
 	}
 	
 	public void setContactListener(MyContactListener contacts){
@@ -92,12 +106,15 @@ public class Water {
 				List<Vector2> intersectionPoints = new ArrayList<Vector2>();
 				if(IntersectionUtils.findIntersectionOfFixtures(fixtureA, fixtureB, intersectionPoints)){
 					
+					if(waves){
+						updateColumns(intersectionPoints);
+					}
+					
 					//find centroid and area
 					SimplePolygon2D interPolygon = IntersectionUtils.getIntersectionPolygon(intersectionPoints);
 					Point2D centroidPoint = interPolygon.centroid();
 					Vector2 centroid = new Vector2((float) centroidPoint.x(), (float) centroidPoint.y());
 					float area = (float) interPolygon.area();
-					
 					
 					//apply buoyancy force (fixtureA is the fluid)
 					float displacedMass = fixtureA.getDensity() * area;
@@ -138,10 +155,58 @@ public class Water {
 	                    Vector2 liftDir = new Vector2(-1 * velDir.y, 1 * velDir.x);
 	                    Vector2 liftForce = new Vector2(liftMag * liftDir.x, liftMag * liftDir.y);
 	                    fixtureB.getBody().applyForce(liftForce, midPoint, true);
+	                    
+	                    // rotate correction
+	                    float angularDrag = area * -fixtureB.getBody().getAngularVelocity()+rotateCorrection;
+	                    fixtureB.getBody().applyTorque( angularDrag , true);
 	                }
 					
 				}
 				
+			}
+		}
+	}
+	
+	private void updateColumns(List<Vector2> intersectionPoints){
+		
+		List<Point2D> points = new ArrayList<Point2D>();
+		for(Vector2 point : intersectionPoints){
+			points.add(new Point2D(point.x, point.y));
+		}
+		
+		for(int i = 0; i < columns.size(); i++){
+			WaterColumn column = columns.get(i);
+			if(column.x() >= 0){
+				// column points
+				Point2D col1 = new Point2D(column.x(), column.getHeight());
+				Point2D col2 = new Point2D(column.x(), body.getPosition().y-column.getHeight());
+				
+				for(int j = 0; j<intersectionPoints.size(); j++){
+					// polygon, 1 line points
+					Point2D p1 = new Point2D(intersectionPoints.get(j).x, intersectionPoints.get(j).y);
+					Point2D p2 = null;
+					if(j != intersectionPoints.size()-1){
+						p2 = new Point2D(intersectionPoints.get(j+1).x, intersectionPoints.get(j+1).y);
+					} else {
+						p2 = new Point2D(intersectionPoints.get(0).x, intersectionPoints.get(0).y);
+					}
+					
+					// lines for polygon and column
+					Line2D line1 = new Line2D(col1, col2);
+					Line2D line2 = new Line2D(p1, p2);
+					
+					long elapsedTime = System.currentTimeMillis() - column.getStartTime();
+					if((elapsedTime < 150 || column.getStartTime() == 0)  && Line2D.intersects(line1, line2)){
+						if(column.getStartTime() == 0)
+							column.setStartTime(System.currentTimeMillis());
+						Point2D intersection = StraightLine2D.getIntersection(col1, col2, p1, p2);
+						if(intersection != null && intersection.y() < column.getHeight())
+							column.setHeight((float) intersection.y());
+					}
+				}
+			}
+			else {
+				column.setStartTime(0);
 			}
 		}
 	}
@@ -260,6 +325,14 @@ public class Water {
 
 	public float getSpread() {
 		return spread;
+	}
+
+	public boolean hasWaves() {
+		return waves;
+	}
+
+	public void setWaves(boolean waves) {
+		this.waves = waves;
 	}
 
 }

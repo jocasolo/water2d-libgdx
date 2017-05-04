@@ -22,8 +22,13 @@ public class IntersectionUtils {
 		Vector2 dp = new Vector2(s.x - e.x, s.y - e.y);
 		float n1 = cp1.x * cp2.y - cp1.y * cp2.x;
 		float n2 = s.x * e.y - s.y * e.x;
-		float n3 = 1.0f / (dc.x * dp.y - dc.y * dp.x);
-		return new Vector2((n1 * dp.x - n2 * dc.x) * n3, (n1 * dp.y - n2 * dc.y) * n3);
+		float n3 = (dc.x * dp.y - dc.y * dp.x);
+		if(n3 != 0){
+			n3 = 1.0f / n3;
+			return new Vector2((n1 * dp.x - n2 * dc.x) * n3, (n1 * dp.y - n2 * dc.y) * n3);
+		}
+		
+		return null;
 	}
 
 	public static boolean findIntersectionOfFixtures(Fixture fA, Fixture fB, List<Vector2> outputVertices) {
@@ -70,8 +75,7 @@ public class IntersectionUtils {
 				return false;
 			List<Vector2> inputList = new ArrayList<Vector2>(outputVertices);
 			outputVertices.clear();
-			Vector2 s = inputList.get(inputList.size() - 1); // last on the
-																// input list
+			Vector2 s = inputList.get(inputList.size() - 1); // last on the input list
 			for (int i = 0; i < inputList.size(); i++) {
 				Vector2 e = inputList.get(i);
 				if (inside(cp1, cp2, e)) {
