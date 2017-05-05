@@ -1,6 +1,7 @@
 package com.dream.water.effect;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
@@ -97,6 +98,7 @@ public class Water {
 		
 		if(body != null && contacts != null){
 			World world = body.getWorld();
+			List<List<Vector2>> allIntersections = new ArrayList<List<Vector2>>();
 			for(Pair<Fixture, Fixture> pair : contacts.getFixturePairs()){
 				Fixture fixtureA = pair.getKey();
 				Fixture fixtureB = pair.getValue();
@@ -106,9 +108,7 @@ public class Water {
 				List<Vector2> intersectionPoints = new ArrayList<Vector2>();
 				if(IntersectionUtils.findIntersectionOfFixtures(fixtureA, fixtureB, intersectionPoints)){
 					
-					if(waves){
-						updateColumns(intersectionPoints);
-					}
+					allIntersections.add(IntersectionUtils.copyList(intersectionPoints));
 					
 					//find centroid and area
 					SimplePolygon2D interPolygon = IntersectionUtils.getIntersectionPolygon(intersectionPoints);
@@ -164,49 +164,72 @@ public class Water {
 				}
 				
 			}
+			if(waves){
+				updateColumns(allIntersections);
+			}
 		}
 	}
 	
-	private void updateColumns(List<Vector2> intersectionPoints){
+	private void updateColumns(List<List<Vector2>> intersections){
 		
-		List<Point2D> points = new ArrayList<Point2D>();
-		for(Vector2 point : intersectionPoints){
-			points.add(new Point2D(point.x, point.y));
-		}
+		List<Integer> colsMoved = new ArrayList<Integer>();
 		
-		for(int i = 0; i < columns.size(); i++){
-			WaterColumn column = columns.get(i);
-			if(column.x() >= 0){
-				// column points
-				Point2D col1 = new Point2D(column.x(), column.getHeight());
-				Point2D col2 = new Point2D(column.x(), body.getPosition().y-column.getHeight());
-				
-				for(int j = 0; j<intersectionPoints.size(); j++){
-					// polygon, 1 line points
-					Point2D p1 = new Point2D(intersectionPoints.get(j).x, intersectionPoints.get(j).y);
-					Point2D p2 = null;
-					if(j != intersectionPoints.size()-1){
-						p2 = new Point2D(intersectionPoints.get(j+1).x, intersectionPoints.get(j+1).y);
-					} else {
-						p2 = new Point2D(intersectionPoints.get(0).x, intersectionPoints.get(0).y);
-					}
+		for(int index = 0; index<intersections.size(); index++){
+			List<Vector2> intersectionPoints = intersections.get(index);
+			
+			float minX = Float.MAX_VALUE;
+			float maxX = Float.MIN_VALUE;
+			
+			List<Point2D> points = new ArrayList<Point2D>();
+			for(Vector2 point : intersectionPoints){
+				minX = Float.min(minX, point.x);
+				maxX = Float.max(maxX, point.x);
+				points.add(new Point2D(point.x, point.y));
+			}
+			
+			for(int i = 0; i < columns.size(); i++){
+				WaterColumn column = columns.get(i);
+				if(column.x() == 0.5)
+					;//System.out.println("");
+				if(!colsMoved.contains(i) && column.x() >= minX && column.x() <= maxX){
+					// column points
+					Point2D col1 = new Point2D(column.x(), column.getHeight());
+					Point2D col2 = new Point2D(column.x(), body.getPosition().y-column.getHeight());
 					
-					// lines for polygon and column
-					Line2D line1 = new Line2D(col1, col2);
-					Line2D line2 = new Line2D(p1, p2);
-					
-					long elapsedTime = System.currentTimeMillis() - column.getStartTime();
-					if((elapsedTime < 150 || column.getStartTime() == 0)  && Line2D.intersects(line1, line2)){
-						if(column.getStartTime() == 0)
-							column.setStartTime(System.currentTimeMillis());
-						Point2D intersection = StraightLine2D.getIntersection(col1, col2, p1, p2);
-						if(intersection != null && intersection.y() < column.getHeight())
-							column.setHeight((float) intersection.y());
+					for(int j = 0; j<intersectionPoints.size()-1; j++){
+						// polygon, 1 line points
+						Point2D p1 = new Point2D(intersectionPoints.get(j).x, intersectionPoints.get(j).y);
+						Point2D p2 = null;
+						if(j != intersectionPoints.size()-1){
+							p2 = new Point2D(intersectionPoints.get(j+1).x, intersectionPoints.get(j+1).y);
+						}
+						
+						// lines of one side of the polygon and the column water
+						Line2D line1 = new Line2D(col1, col2);
+						Line2D line2 = new Line2D(p1, p2);
+						
+						long elapsedTime = System.currentTimeMillis() - column.getStartTime();
+						if((elapsedTime < 150 || column.getStartTime() == 0)  && Line2D.intersects(line1, line2)){
+							if(column.getStartTime() == 0)
+								column.setStartTime(System.currentTimeMillis());
+							Point2D intersection = StraightLine2D.getIntersection(col1, col2, p1, p2);
+							if(intersection != null && intersection.y() < column.getHeight()){
+								column.setHeight((float) intersection.y());
+								colsMoved.add(i);
+							}
+						}
 					}
 				}
+				else {
+					if(!colsMoved.contains(i))
+						column.setStartTime(0);
+				}
 			}
-			else {
-				column.setStartTime(0);
+			
+			if(!colsMoved.isEmpty() && colsMoved.size() < 4){
+				for(int i : colsMoved){
+					columns.get(i).setHeight(columns.get(i).getTargetHeight());
+				}
 			}
 		}
 	}

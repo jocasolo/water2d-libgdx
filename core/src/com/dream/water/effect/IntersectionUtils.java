@@ -128,4 +128,12 @@ public class IntersectionUtils {
 	public static float min(float a, float b) {
 		return a < b ? a : b;
 	}
+	
+	public static List<Vector2> copyList (List<Vector2> list){
+		List<Vector2> res = new ArrayList<Vector2>();
+		for(Vector2 vector : list){
+			res.add(new Vector2(vector.x, vector.y));
+		}
+		return res;
+	}
 }

@@ -1,11 +1,17 @@
 package com.dream.water;
 
+import java.util.ArrayList;
+
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
-import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.PolygonRegion;
+import com.badlogic.gdx.graphics.g2d.PolygonSprite;
+import com.badlogic.gdx.graphics.g2d.PolygonSpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.EarClippingTriangulator;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
@@ -30,7 +36,8 @@ public class GameMain extends ApplicationAdapter {
 	MyContactListener contacts;
 	Box2DDebugRenderer debugRenderer;
 	
-	ShapeRenderer shapeRenderer;
+	PolygonSpriteBatch polyBatch;
+	TextureRegion textureWater;
 
 	@Override
 	public void create() {
@@ -43,12 +50,12 @@ public class GameMain extends ApplicationAdapter {
 		world.setContactListener(contacts);
 		debugRenderer = new Box2DDebugRenderer();
 		
-		shapeRenderer = new ShapeRenderer();
-		shapeRenderer.setColor(0,0.5f,0.5f,1);
-		shapeRenderer.setProjectionMatrix(camera.combined);
+		polyBatch = new PolygonSpriteBatch();
+		polyBatch.setProjectionMatrix(camera.combined);
+	    textureWater = new TextureRegion(new Texture(Gdx.files.internal("water.png")));
 		
 		water = new Water(true);
-		water.createBody(world, 4f, 0, 7, 2, 1); //world, x, y, width, height, density
+		water.createBody(world, 4f, 0, 7, 2, 0.8f); //world, x, y, width, height, density
 		water.setContactListener(contacts);
 	}
 	
@@ -64,7 +71,7 @@ public class GameMain extends ApplicationAdapter {
 
 		// Create a circle shape and set its radius to 6
 		PolygonShape square = new PolygonShape();
-		square.setAsBox(0.2f, 0.6f);
+		square.setAsBox(0.4f, 0.4f);
 
 		// Create a fixture definition to apply our shape to
 		FixtureDef fixtureDef = new FixtureDef();
@@ -82,7 +89,7 @@ public class GameMain extends ApplicationAdapter {
 	@Override
 	public void render () {
 		// Clean screen
-		Gdx.gl.glClearColor(0, 0, 0, 1);
+		Gdx.gl.glClearColor(1, 1, 1, 1);
 		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 		
 		// Input
@@ -94,20 +101,25 @@ public class GameMain extends ApplicationAdapter {
 		water.update();
 		// draw columns
 		if(water.hasWaves()){
-			shapeRenderer.begin(ShapeType.Line);
-			for(int i = 0; i< water.getColumns().size(); i++){
-				WaterColumn column = water.getColumns().get(i);
-				shapeRenderer.line(column.x(), column.y(), column.x(), water.getColumns().get(i).getHeight());
+			
+			polyBatch.begin();
+			for(int i = 0; i< water.getColumns().size()-1; i++){
+				WaterColumn c1 = water.getColumns().get(i);
+				WaterColumn c2 = water.getColumns().get(i+1);
+				float[] vertices = new float[]{c1.x(), c1.y(), c1.x(), c1.getHeight(), c2.x(), c2.getHeight(), c2.x(), c2.y()};
+				PolygonSprite sprite = new PolygonSprite(new PolygonRegion(textureWater,
+			            vertices, new EarClippingTriangulator().computeTriangles(
+			                  vertices).toArray()));
+				sprite.draw(polyBatch);
 			}
-			shapeRenderer.end();
+			
+			polyBatch.end();
 			water.updateWaves();
 		}
 		
 		debugRenderer.render(world, camera.combined);
 		
 	}
-
-	
 
 	@Override
 	public void dispose() {
