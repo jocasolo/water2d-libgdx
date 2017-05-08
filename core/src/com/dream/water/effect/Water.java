@@ -1,11 +1,9 @@
 package com.dream.water.effect;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
@@ -18,7 +16,6 @@ import com.badlogic.gdx.utils.Predicate;
 
 import javafx.util.Pair;
 import math.geom2d.Point2D;
-import math.geom2d.line.Line2D;
 import math.geom2d.line.StraightLine2D;
 import math.geom2d.polygon.SimplePolygon2D;
 
@@ -77,15 +74,6 @@ public class Water {
 				float cx = i * this.columnSparation + x - width/2;
 				columns.add(new WaterColumn(cx, y-height/2, y+height/2, y+height/2, 0));
 			}
-			
-			final float w = width;
-			predicate = new Predicate<Particle>() {
-				@Override
-				public boolean evaluate(Particle p) {
-					return p.getPosition().x >= 0 && p.getPosition().x <= w
-							&& p.getPosition().y - 5 <= getHeight(p.getPosition().x); 
-				}
-			};
 		}
 		// *********************************************************
 	}
@@ -98,7 +86,6 @@ public class Water {
 		
 		if(body != null && contacts != null){
 			World world = body.getWorld();
-			List<List<Vector2>> allIntersections = new ArrayList<List<Vector2>>();
 			for(Pair<Fixture, Fixture> pair : contacts.getFixturePairs()){
 				Fixture fixtureA = pair.getKey();
 				Fixture fixtureB = pair.getValue();
@@ -108,7 +95,8 @@ public class Water {
 				List<Vector2> intersectionPoints = new ArrayList<Vector2>();
 				if(IntersectionUtils.findIntersectionOfFixtures(fixtureA, fixtureB, intersectionPoints)){
 					
-					allIntersections.add(IntersectionUtils.copyList(intersectionPoints));
+					List<Vector2> actualIntersections = new ArrayList<Vector2>();
+					actualIntersections = IntersectionUtils.copyList(intersectionPoints);
 					
 					//find centroid and area
 					SimplePolygon2D interPolygon = IntersectionUtils.getIntersectionPolygon(intersectionPoints);
@@ -160,77 +148,58 @@ public class Water {
 	                    float angularDrag = area * -fixtureB.getBody().getAngularVelocity()+rotateCorrection;
 	                    fixtureB.getBody().applyTorque( angularDrag , true);
 	                }
-					
+	                
+	                if(waves && area > 0.3f){
+	    				updateColumns(fixtureB.getBody(), actualIntersections);
+	    			}
 				}
-				
-			}
-			if(waves){
-				updateColumns(allIntersections);
 			}
 		}
 	}
 	
-	private void updateColumns(List<List<Vector2>> intersections){
+	private void updateColumns(Body body, List<Vector2> intersectionPoints){
 		
-		List<Integer> colsMoved = new ArrayList<Integer>();
+		float minX = Float.MAX_VALUE;
+		float maxX = Float.MIN_VALUE;
 		
-		for(int index = 0; index<intersections.size(); index++){
-			List<Vector2> intersectionPoints = intersections.get(index);
+		for(Vector2 point : intersectionPoints){
+			minX = Float.min(minX, point.x);
+			maxX = Float.max(maxX, point.x);
+		}
+		
+		for(int i = 0; i < columns.size(); i++){
+			WaterColumn column = columns.get(i);
 			
-			float minX = Float.MAX_VALUE;
-			float maxX = Float.MIN_VALUE;
-			
-			List<Point2D> points = new ArrayList<Point2D>();
-			for(Vector2 point : intersectionPoints){
-				minX = Float.min(minX, point.x);
-				maxX = Float.max(maxX, point.x);
-				points.add(new Point2D(point.x, point.y));
-			}
-			
-			for(int i = 0; i < columns.size(); i++){
-				WaterColumn column = columns.get(i);
-				if(column.x() == 0.5)
-					;//System.out.println("");
-				if(!colsMoved.contains(i) && column.x() >= minX && column.x() <= maxX){
-					// column points
-					Point2D col1 = new Point2D(column.x(), column.getHeight());
-					Point2D col2 = new Point2D(column.x(), body.getPosition().y-column.getHeight());
+			if(column.x() >= minX && column.x() <= maxX){
+				// column points
+				Point2D col1 = new Point2D(column.x(), column.getHeight());
+				Point2D col2 = new Point2D(column.x(), body.getPosition().y-column.getHeight());
+				
+				for(int j = 0; j<intersectionPoints.size()-1; j++){
+					// polygon, 1 line points
+					Point2D p1 = new Point2D(intersectionPoints.get(j).x, intersectionPoints.get(j).y);
+					Point2D p2 = null;
+					if(j != intersectionPoints.size()-1){
+						p2 = new Point2D(intersectionPoints.get(j+1).x, intersectionPoints.get(j+1).y);
+					}
 					
-					for(int j = 0; j<intersectionPoints.size()-1; j++){
-						// polygon, 1 line points
-						Point2D p1 = new Point2D(intersectionPoints.get(j).x, intersectionPoints.get(j).y);
-						Point2D p2 = null;
-						if(j != intersectionPoints.size()-1){
-							p2 = new Point2D(intersectionPoints.get(j+1).x, intersectionPoints.get(j+1).y);
-						}
-						
-						// lines of one side of the polygon and the column water
-						Line2D line1 = new Line2D(col1, col2);
-						Line2D line2 = new Line2D(p1, p2);
-						
-						long elapsedTime = System.currentTimeMillis() - column.getStartTime();
-						if((elapsedTime < 150 || column.getStartTime() == 0)  && Line2D.intersects(line1, line2)){
-							if(column.getStartTime() == 0)
-								column.setStartTime(System.currentTimeMillis());
-							Point2D intersection = StraightLine2D.getIntersection(col1, col2, p1, p2);
-							if(intersection != null && intersection.y() < column.getHeight()){
-								column.setHeight((float) intersection.y());
-								colsMoved.add(i);
-							}
+					Point2D intersection = StraightLine2D.getIntersection(col1, col2, p1, p2);
+					if(intersection != null && intersection.y() < column.getHeight()){
+						//column.setHeight((float) intersection.y());
+						if(body.getLinearVelocity().y < 0 && column.getActualBody() == null){
+							column.setActualBody(body);
+							column.setSpeed(body.getLinearVelocity().y*3/100);
+							this.createSplashParticles(column, Math.abs(body.getLinearVelocity().y));
 						}
 					}
 				}
-				else {
-					if(!colsMoved.contains(i))
-						column.setStartTime(0);
-				}
+			}
+			else if(body == column.getActualBody()) {
+				column.setActualBody(null);
 			}
 			
-			if(!colsMoved.isEmpty() && colsMoved.size() < 4){
-				for(int i : colsMoved){
-					columns.get(i).setHeight(columns.get(i).getTargetHeight());
-				}
-			}
+			if(body.getPosition().y < column.y())
+				column.setActualBody(null);
 		}
 	}
 
@@ -264,41 +233,21 @@ public class Water {
 		}
 
 		List<Particle> res = new ArrayList<Particle>(particles);
-		for (Particle particle : particles) {
+		/*for (Particle particle : particles) {
 			particle.update();
 			if (predicate.evaluate(particle))
 				res.add(particle);
 		}
 
-		particles = res;
+		particles = res;*/
 	}
 
-	public float getScale() {
-		return Gdx.graphics.getWidth() / (columns.size() - 1f);
-	}
+	private void createSplashParticles(WaterColumn column, float speed) {
+		float y = column.getHeight();
 
-	public float getHeight(float x) { // 800 ************************
-		if (x < 0 || x > 800) {
-			return 240;
-		}
-		return columns.get((int) (x / this.getScale())).getHeight();
-	}
-
-	public void splash(float xPosition, float speed) {
-		int index = (int) this.clamp((int) (xPosition / this.getScale()), 0, columns.size() - 1);
-
-		for (int i = Math.max(0, index); i < Math.min(columns.size() - 1, index + 1); i++)
-			columns.get(index).setSpeed(speed);
-
-		this.createSplashParticles(xPosition, speed);
-	}
-
-	private void createSplashParticles(float xPosition, float speed) {
-		float y = this.getHeight(xPosition);
-
-		if (speed > 120) {
+		if (speed > 3f) {
 			for (int i = 0; i < speed / 8; i++) {
-				Vector2 pos = new Vector2(xPosition, y).add(this.getRandomVector(40));
+				Vector2 pos = new Vector2(column.x(), y).add(this.getRandomVector(column.getTargetHeight()));
 				Vector2 vel = this.fromPolar((float) Math.toRadians(this.getRandomFloat(-150, -30)),
 						this.getRandomFloat(0, 0.5f * (float) Math.sqrt(speed)));
 				this.createParticle(pos, vel);
@@ -325,10 +274,15 @@ public class Water {
 
 		return res;
 	}
-
-	private int clamp(int num, int min, int max) {
-		return num <= min ? min : num >= max ? max : num;
-	}
+	
+	private float getHeight(float xPosition){
+		for(int i = 0; i < columns.size(); i++){
+			if(columns.get(i).x() >= xPosition && columns.get(i).x() <= xPosition){
+				return columns.get(i).getHeight();
+			}
+		}
+		return columns.get(0).getTargetHeight();
+	};
 
 	public List<WaterColumn> getColumns() {
 		return columns;
@@ -356,6 +310,14 @@ public class Water {
 
 	public void setWaves(boolean waves) {
 		this.waves = waves;
+	}
+	
+	public List<Particle> getParticles() {
+		return particles;
+	}
+	
+	public void setParticles(List<Particle> particles) {
+		this.particles = particles;
 	}
 
 }

@@ -1,7 +1,5 @@
 package com.dream.water;
 
-import java.util.ArrayList;
-
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
@@ -11,6 +9,8 @@ import com.badlogic.gdx.graphics.g2d.PolygonRegion;
 import com.badlogic.gdx.graphics.g2d.PolygonSprite;
 import com.badlogic.gdx.graphics.g2d.PolygonSpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
 import com.badlogic.gdx.math.EarClippingTriangulator;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
@@ -23,6 +23,7 @@ import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.utils.viewport.StretchViewport;
 import com.dream.water.effect.MyContactListener;
+import com.dream.water.effect.Particle;
 import com.dream.water.effect.Water;
 import com.dream.water.effect.WaterColumn;
 
@@ -36,6 +37,7 @@ public class GameMain extends ApplicationAdapter {
 	MyContactListener contacts;
 	Box2DDebugRenderer debugRenderer;
 	
+	ShapeRenderer shapeBatch;
 	PolygonSpriteBatch polyBatch;
 	TextureRegion textureWater;
 
@@ -50,12 +52,14 @@ public class GameMain extends ApplicationAdapter {
 		world.setContactListener(contacts);
 		debugRenderer = new Box2DDebugRenderer();
 		
+		shapeBatch = new ShapeRenderer();
+		shapeBatch.setProjectionMatrix(camera.combined);
 		polyBatch = new PolygonSpriteBatch();
 		polyBatch.setProjectionMatrix(camera.combined);
 	    textureWater = new TextureRegion(new Texture(Gdx.files.internal("water.png")));
 		
 		water = new Water(true);
-		water.createBody(world, 4f, 0, 7, 2, 0.8f); //world, x, y, width, height, density
+		water.createBody(world, 4f, 0, 7, 2, 1f); //world, x, y, width, height, density
 		water.setContactListener(contacts);
 	}
 	
@@ -112,13 +116,19 @@ public class GameMain extends ApplicationAdapter {
 			                  vertices).toArray()));
 				sprite.draw(polyBatch);
 			}
-			
 			polyBatch.end();
+			
+			shapeBatch.setColor(1, 0, 0, 1);
+			shapeBatch.begin(ShapeType.Point);
+			for(Particle p : water.getParticles()){
+				shapeBatch.point(p.getPosition().x, p.getPosition().y, 0);
+			}
+			shapeBatch.end();
+			
 			water.updateWaves();
 		}
 		
 		debugRenderer.render(world, camera.combined);
-		
 	}
 
 	@Override

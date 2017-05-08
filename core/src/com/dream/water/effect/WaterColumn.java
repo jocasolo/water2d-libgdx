@@ -1,12 +1,14 @@
 package com.dream.water.effect;
 
+import com.badlogic.gdx.physics.box2d.Body;
+
 public class WaterColumn {
 
 	private float targetHeight;
 	private float height;
 	private float speed;
 	private float x, y;
-	private long startTime;
+	private Body actualBody;
 	
 	public WaterColumn(float x, float y, float targetHeight, float height, float speed) {
 		this.targetHeight = targetHeight;
@@ -14,8 +16,6 @@ public class WaterColumn {
 		this.speed = speed;
 		this.x(x);
 		this.y(y);
-		
-		this.startTime = 0;
 	}
 	
 	public void update(float dampening, float tension){
@@ -64,12 +64,12 @@ public class WaterColumn {
 		this.y = y;
 	}
 
-	public long getStartTime() {
-		return startTime;
+	public Body getActualBody() {
+		return actualBody;
 	}
 
-	public void setStartTime(long startTime) {
-		this.startTime = startTime;
+	public void setActualBody(Body actualBody) {
+		this.actualBody = actualBody;
 	}
 	
 }
