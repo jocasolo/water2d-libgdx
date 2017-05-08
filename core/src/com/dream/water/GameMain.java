@@ -59,7 +59,7 @@ public class GameMain extends ApplicationAdapter {
 		spriteBatch.setProjectionMatrix(camera.combined);
 		polyBatch = new PolygonSpriteBatch();
 		polyBatch.setProjectionMatrix(camera.combined);
-	    textureWater = new TextureRegion(new Texture(Gdx.files.internal("water.png")));
+	    textureWater = new TextureRegion(new Texture(Gdx.files.internal("water.png")), 4, 1);
 	    
 		water = new Water();
 		water.createBody(world, 4f, 0, 7, 2, 0.85f); //world, x, y, width, height, density
@@ -117,7 +117,7 @@ public class GameMain extends ApplicationAdapter {
 				PolygonSprite sprite = new PolygonSprite(new PolygonRegion(textureWater,
 			            vertices, new EarClippingTriangulator().computeTriangles(
 			                  vertices).toArray()));
-				sprite.draw(polyBatch);
+				sprite.draw(polyBatch, Math.min(1, Math.max(0.9f, c1.getHeight()/c1.getTargetHeight())));
 			}
 			polyBatch.end();
 			
