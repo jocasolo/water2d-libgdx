@@ -6,26 +6,12 @@ public class Particle {
 	
 	private Vector2 position;
 	private Vector2 velocity;
-	private float orientation;
 	private float time;
 	private float initX;
 	
 	public Particle(Vector2 position, Vector2 velocity, float orientation){
 		this.position = position;
 		this.velocity = velocity;
-		this.orientation = orientation;
-	}
-	
-	public void update(){
-		final float gravity = 0.3f;
-		
-		velocity.y += gravity;
-		position.add(velocity);
-		orientation = getAngle();
-	}
-	
-	private float getAngle(){
-		return (float) Math.atan2(velocity.y, velocity.x);
 	}
 	
 	public Vector2 getPosition() {
@@ -42,14 +28,6 @@ public class Particle {
 	
 	public void setVelocity(Vector2 velocity) {
 		this.velocity = velocity;
-	}
-	
-	public float getOrientation() {
-		return orientation;
-	}
-	
-	public void setOrientation(float orientation) {
-		this.orientation = orientation;
 	}
 
 	public float getTime() {

@@ -13,7 +13,6 @@ import com.badlogic.gdx.physics.box2d.Fixture;
 import com.badlogic.gdx.physics.box2d.FixtureDef;
 import com.badlogic.gdx.physics.box2d.PolygonShape;
 import com.badlogic.gdx.physics.box2d.World;
-import com.badlogic.gdx.utils.Predicate;
 
 import javafx.util.Pair;
 import math.geom2d.Point2D;
@@ -231,7 +230,7 @@ public class Water {
 				column.setActualBody(null);
 			}
 			
-			if(body.getPosition().y < column.y())
+			if(body.getPosition().y < column.y() || column.getActualBody() != null && column.getActualBody().getPosition().y < column.y())
 				column.setActualBody(null);
 		}
 	}
