@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
@@ -21,7 +22,9 @@ import math.geom2d.polygon.SimplePolygon2D;
 
 public class Water {
 
-	private boolean waves = false;
+	private boolean waves;
+	private boolean splashParticles;
+
 	private List<WaterColumn> columns; // for waves
 	List<Particle> particles = new ArrayList<Particle>();
 	private Body body; // Box2d body
@@ -36,10 +39,14 @@ public class Water {
 	private final float columnSparation = 0.04f;
 	private final float rotateCorrection = 0.0627f;
 
-	Predicate<Particle> predicate;
+	public Water(){
+		this.setWaves(true);
+		this.setSplashParticles(true);
+	}
 	
-	public Water(boolean waves){
+	public Water(boolean waves, boolean particles){
 		this.setWaves(waves);
+		this.setSplashParticles(particles);
 	}
 	
 	public void createBody(World world, float x, float y, float width, float height, float density) {
@@ -149,12 +156,37 @@ public class Water {
 	                    fixtureB.getBody().applyTorque( angularDrag , true);
 	                }
 	                
-	                if(waves && area > 0.3f){
+                	if(waves && area > 0.3f){
 	    				updateColumns(fixtureB.getBody(), actualIntersections);
 	    			}
 				}
 			}
 		}
+		
+		if(splashParticles && !particles.isEmpty()){
+        	updateParticles();
+        }
+	}
+	
+	private void updateParticles(){
+		List<Particle> particlesCopy = new ArrayList<Particle>(particles);
+		for(Particle particle : particles){
+			
+			float elapsedTime = particle.getTime() + Gdx.graphics.getDeltaTime();
+
+			float y = (float) (columns.get(0).getTargetHeight() + (Math.abs(particle.getVelocity().y) * elapsedTime) + 0.5 * -10 * elapsedTime * elapsedTime);
+
+			if(y < columns.get(0).getTargetHeight())
+				particlesCopy.remove(particle);
+			else {
+				float x = (float) (particle.getInitX() + particle.getVelocity().x * elapsedTime);
+				
+				particle.setTime(elapsedTime);
+				particle.setPosition(new Vector2(x, y));
+			}
+		}
+		
+		particles = particlesCopy;
 	}
 	
 	private void updateColumns(Body body, List<Vector2> intersectionPoints){
@@ -189,7 +221,8 @@ public class Water {
 						if(body.getLinearVelocity().y < 0 && column.getActualBody() == null){
 							column.setActualBody(body);
 							column.setSpeed(body.getLinearVelocity().y*3/100);
-							this.createSplashParticles(column, Math.abs(body.getLinearVelocity().y));
+							if(splashParticles)
+								this.createSplashParticles(column, Math.abs(body.getLinearVelocity().y));
 						}
 					}
 				}
@@ -232,31 +265,36 @@ public class Water {
 			}
 		}
 
-		List<Particle> res = new ArrayList<Particle>(particles);
-		/*for (Particle particle : particles) {
-			particle.update();
-			if (predicate.evaluate(particle))
-				res.add(particle);
-		}
-
-		particles = res;*/
+		
 	}
 
 	private void createSplashParticles(WaterColumn column, float speed) {
 		float y = column.getHeight();
-
+		Vector2 bodyVel = column.getActualBody().getLinearVelocity();
+		
+		
 		if (speed > 3f) {
 			for (int i = 0; i < speed / 8; i++) {
 				Vector2 pos = new Vector2(column.x(), y).add(this.getRandomVector(column.getTargetHeight()));
-				Vector2 vel = this.fromPolar((float) Math.toRadians(this.getRandomFloat(-150, -30)),
-						this.getRandomFloat(0, 0.5f * (float) Math.sqrt(speed)));
+				
+				Vector2 vel = new Vector2();
+				if(rand.nextInt(4) == 0)
+					vel = new Vector2(0, bodyVel.y/2 + rand.nextFloat() * bodyVel.y/2);
+				else if(pos.x < column.getActualBody().getPosition().x)
+					vel = new Vector2(bodyVel.y/5+ rand.nextFloat() * bodyVel.y/5, bodyVel.y/3 + rand.nextFloat() * bodyVel.y/3);
+				else
+					vel = new Vector2(-bodyVel.y/5 + rand.nextFloat() * bodyVel.y/5, bodyVel.y/3 + rand.nextFloat() * bodyVel.y/3);
+				
 				this.createParticle(pos, vel);
 			}
 		}
 	}
 
 	private void createParticle(Vector2 pos, Vector2 velocity) {
-		particles.add(new Particle(pos, velocity, 0));
+		Particle particle = new Particle(pos, velocity, 0);
+		particle.setInitX(pos.x);
+		particle.setTime(0);
+		particles.add(particle);
 	}
 
 	private Vector2 getRandomVector(float maxLength) {
@@ -274,15 +312,6 @@ public class Water {
 
 		return res;
 	}
-	
-	private float getHeight(float xPosition){
-		for(int i = 0; i < columns.size(); i++){
-			if(columns.get(i).x() >= xPosition && columns.get(i).x() <= xPosition){
-				return columns.get(i).getHeight();
-			}
-		}
-		return columns.get(0).getTargetHeight();
-	};
 
 	public List<WaterColumn> getColumns() {
 		return columns;
@@ -311,11 +340,19 @@ public class Water {
 	public void setWaves(boolean waves) {
 		this.waves = waves;
 	}
-	
+
+	public boolean isSplashParticles() {
+		return splashParticles;
+	}
+
+	public void setSplashParticles(boolean splashParticles) {
+		this.splashParticles = splashParticles;
+	}
+
 	public List<Particle> getParticles() {
 		return particles;
 	}
-	
+
 	public void setParticles(List<Particle> particles) {
 		this.particles = particles;
 	}

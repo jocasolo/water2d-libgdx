@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.PolygonRegion;
 import com.badlogic.gdx.graphics.g2d.PolygonSprite;
 import com.badlogic.gdx.graphics.g2d.PolygonSpriteBatch;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
@@ -37,9 +38,10 @@ public class GameMain extends ApplicationAdapter {
 	MyContactListener contacts;
 	Box2DDebugRenderer debugRenderer;
 	
-	ShapeRenderer shapeBatch;
+	SpriteBatch spriteBatch;
 	PolygonSpriteBatch polyBatch;
 	TextureRegion textureWater;
+	Texture textureDrop;
 
 	@Override
 	public void create() {
@@ -52,14 +54,15 @@ public class GameMain extends ApplicationAdapter {
 		world.setContactListener(contacts);
 		debugRenderer = new Box2DDebugRenderer();
 		
-		shapeBatch = new ShapeRenderer();
-		shapeBatch.setProjectionMatrix(camera.combined);
+		textureDrop = new Texture(Gdx.files.internal("water.png"));
+		spriteBatch = new SpriteBatch();
+		spriteBatch.setProjectionMatrix(camera.combined);
 		polyBatch = new PolygonSpriteBatch();
 		polyBatch.setProjectionMatrix(camera.combined);
 	    textureWater = new TextureRegion(new Texture(Gdx.files.internal("water.png")));
-		
-		water = new Water(true);
-		water.createBody(world, 4f, 0, 7, 2, 1f); //world, x, y, width, height, density
+	    
+		water = new Water();
+		water.createBody(world, 4f, 0, 7, 2, 0.85f); //world, x, y, width, height, density
 		water.setContactListener(contacts);
 	}
 	
@@ -118,12 +121,11 @@ public class GameMain extends ApplicationAdapter {
 			}
 			polyBatch.end();
 			
-			shapeBatch.setColor(1, 0, 0, 1);
-			shapeBatch.begin(ShapeType.Point);
+			spriteBatch.begin();
 			for(Particle p : water.getParticles()){
-				shapeBatch.point(p.getPosition().x, p.getPosition().y, 0);
+				spriteBatch.draw(textureDrop, p.getPosition().x, p.getPosition().y, 0.1f, 0.1f);
 			}
-			shapeBatch.end();
+			spriteBatch.end();
 			
 			water.updateWaves();
 		}
