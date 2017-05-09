@@ -1,10 +1,20 @@
 package com.dream.water.effect;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.Camera;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.PolygonRegion;
+import com.badlogic.gdx.graphics.g2d.PolygonSprite;
+import com.badlogic.gdx.graphics.g2d.PolygonSpriteBatch;
+import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.EarClippingTriangulator;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
@@ -13,41 +23,77 @@ import com.badlogic.gdx.physics.box2d.Fixture;
 import com.badlogic.gdx.physics.box2d.FixtureDef;
 import com.badlogic.gdx.physics.box2d.PolygonShape;
 import com.badlogic.gdx.physics.box2d.World;
+import com.badlogic.gdx.utils.Disposable;
 
 import javafx.util.Pair;
 import math.geom2d.Point2D;
 import math.geom2d.line.StraightLine2D;
 import math.geom2d.polygon.SimplePolygon2D;
 
-public class Water {
+public class Water implements Disposable {
 
 	private boolean waves;
 	private boolean splashParticles;
 
-	private List<WaterColumn> columns; // for waves
-	List<Particle> particles = new ArrayList<Particle>();
-	private Body body; // Box2d body
+	SpriteBatch spriteBatch;
+	PolygonSpriteBatch polyBatch;
+	TextureRegion textureWater;
+	Texture textureDrop;
 	
-	private MyContactListener contacts;
+	private Set<Pair<Fixture, Fixture>> fixturePairs; // contacts between this object and dynamic bodies
+	private List<WaterColumn> columns; // for waves
+	List<Particle> particles; // splash particles
+	private Body body; // Box2d body
 
 	private static Random rand = new Random();
 
 	private final float tension = 0.025f;
 	private final float dampening = 0.025f;
 	private final float spread = 0.25f;
-	private final float columnSparation = 0.04f;
-	private final float rotateCorrection = 0.0627f;
+	
+	private final float columnSparation = 0.04f; // 4 px between every column
+	private final float rotateCorrection = 0.0627f; // Manual correction to prevent rotation of bodies in contact with water
 
-	public Water(){
-		this.setWaves(true);
-		this.setSplashParticles(true);
+	/**
+	 * Main constructor. Will create an object with the effect of waves and particles by default.
+	 */
+	public Water() {
+		this(true, true);
 	}
-	
-	public Water(boolean waves, boolean particles){
-		this.setWaves(waves);
-		this.setSplashParticles(particles);
+
+	/**
+	 * Constructor that allows to specify if there is an effect of waves and splash particles.
+	 * @param waves Specifies whether the object will have waves
+	 * @param splashParticles Specifies whether the object will have splash particles
+	 */
+	public Water(boolean waves, boolean splashParticles) {
+
+		this.waves = waves;
+		this.splashParticles = splashParticles;
+		this.fixturePairs = new HashSet<Pair<Fixture, Fixture>>();
+
+		if (waves) {
+			textureWater = new TextureRegion(new Texture(Gdx.files.internal("water.png")));
+			polyBatch = new PolygonSpriteBatch();
+		}
+
+		if (splashParticles) {
+			textureDrop = new Texture(Gdx.files.internal("water.png"));
+			spriteBatch = new SpriteBatch();
+			particles = new ArrayList<Particle>();
+		}
+
 	}
-	
+
+	/**
+	 * Creates the body of the water. It will be a square sensor in a specific box2d world.
+	 * @param world Our box2d world
+	 * @param x Position of the x coordinate of the center of the body
+	 * @param y Position of the y coordinate of the center of the body
+	 * @param width Body width
+	 * @param height Body height
+	 * @param density Body density
+	 */
 	public void createBody(World world, float x, float y, float width, float height, float density) {
 		BodyDef bodyDef = new BodyDef();
 		bodyDef.type = BodyType.StaticBody;
@@ -55,9 +101,10 @@ public class Water {
 
 		// Create our body in the world using our body definition
 		body = world.createBody(bodyDef);
-
+		body.setUserData(this);
+		
 		PolygonShape square = new PolygonShape();
-		square.setAsBox(width/2, height/2);
+		square.setAsBox(width / 2, height / 2);
 
 		// Create a fixture definition to apply our shape to
 		FixtureDef fixtureDef = new FixtureDef();
@@ -69,173 +116,188 @@ public class Water {
 
 		// Create our fixture and attach it to the body
 		body.createFixture(fixtureDef);
-
-		square.dispose();
 		
-		// Water columns (waves) *******************************************
-		if(waves){
+		square.dispose();
+
+		// Water columns (waves)
+		if (waves) {
 			int size = (int) (width / this.columnSparation);
 			columns = new ArrayList<WaterColumn>(size);
 			for (int i = 0; i < size; i++) {
-				float cx = i * this.columnSparation + x - width/2;
-				columns.add(new WaterColumn(cx, y-height/2, y+height/2, y+height/2, 0));
+				float cx = i * this.columnSparation + x - width / 2;
+				columns.add(new WaterColumn(cx, y - height / 2, y + height / 2, y + height / 2, 0));
 			}
 		}
-		// *********************************************************
 	}
-	
-	public void setContactListener(MyContactListener contacts){
-		this.contacts = contacts; 
-	}
-	
-	public void update(){
+
+	/**
+	 * Updates the position of bodies in contact with water. To do this, it applies a force that counteracts
+	 * gravity by calculating the area in contact, centroid and force required. 
+	 */
+	public void update() {
 		
-		if(body != null && contacts != null){
+		if (body != null && fixturePairs != null) {
 			World world = body.getWorld();
-			for(Pair<Fixture, Fixture> pair : contacts.getFixturePairs()){
-				Fixture fixtureA = pair.getKey();
-				Fixture fixtureB = pair.getValue();
-				
-				float density = fixtureA.getDensity();
-				
+			for (Pair<Fixture, Fixture> pair : fixturePairs) {
+				Fixture fixtureA = pair.getKey(); // water
+				Fixture fixtureB = pair.getValue(); //dynamic body
+
+				float density = fixtureA.getDensity(); // water density
+
 				List<Vector2> intersectionPoints = new ArrayList<Vector2>();
-				if(IntersectionUtils.findIntersectionOfFixtures(fixtureA, fixtureB, intersectionPoints)){
-					
+				if (IntersectionUtils.findIntersectionOfFixtures(fixtureA, fixtureB, intersectionPoints)) {
+
 					List<Vector2> actualIntersections = new ArrayList<Vector2>();
 					actualIntersections = IntersectionUtils.copyList(intersectionPoints);
-					
-					//find centroid and area
+
+					// find centroid and area
 					SimplePolygon2D interPolygon = IntersectionUtils.getIntersectionPolygon(intersectionPoints);
 					Point2D centroidPoint = interPolygon.centroid();
 					Vector2 centroid = new Vector2((float) centroidPoint.x(), (float) centroidPoint.y());
 					float area = (float) interPolygon.area();
-					
-					//apply buoyancy force (fixtureA is the fluid)
+
+					// apply buoyancy force (fixtureA is the fluid)
 					float displacedMass = fixtureA.getDensity() * area;
-					Vector2 buoyancyForce = new Vector2(displacedMass * -world.getGravity().x, displacedMass * -world.getGravity().y);
+					Vector2 buoyancyForce = new Vector2(displacedMass * -world.getGravity().x,
+							displacedMass * -world.getGravity().y);
 					fixtureB.getBody().applyForce(buoyancyForce, centroid, true);
-					
-					float dragMod = 0.25f; 	//adjust as desired
-	                float liftMod = 0.25f; 	//adjust as desired
-	                float maxDrag = 2000;  	//adjust as desired
-	                float maxLift = 500;   	//adjust as desired
-	                for (int i = 0; i < intersectionPoints.size(); i++) {
-	                    Vector2 v0 = intersectionPoints.get(i);
-	                    Vector2 v1 = intersectionPoints.get((i+1)%intersectionPoints.size());
-	                    Vector2 sum = v0.add(v1);
-	                    Vector2 midPoint = new Vector2(0.5f * sum.x, 0.5f * sum.y);
 
-	                    //find relative velocity between object and fluid at edge midpoint
-	                    Vector2 velDir = fixtureB.getBody().getLinearVelocityFromWorldPoint( midPoint ).sub(fixtureA.getBody().getLinearVelocityFromWorldPoint(midPoint));
-	                    float vel = velDir.nor().len();
+					float dragMod = 0.25f; // adjust as desired
+					float liftMod = 0.25f; // adjust as desired
+					float maxDrag = 2000; // adjust as desired
+					float maxLift = 500; // adjust as desired
+					for (int i = 0; i < intersectionPoints.size(); i++) {
+						Vector2 v0 = intersectionPoints.get(i);
+						Vector2 v1 = intersectionPoints.get((i + 1) % intersectionPoints.size());
+						Vector2 sum = v0.add(v1);
+						Vector2 midPoint = new Vector2(0.5f * sum.x, 0.5f * sum.y);
 
-	                    Vector2 edge = v1.sub(v0);
-	                    float edgeLength = edge.nor().len();
-	                    Vector2 normal = new Vector2(-(-1) * edge.y, -1 * edge.x);
-	                    float dragDot = normal.x * velDir.x + normal.y * velDir.y;
-	                    if ( dragDot < 0 )
-	                        continue;//normal points backwards - this is not a leading edge
+						// find relative velocity between object and fluid at
+						// edge midpoint
+						Vector2 velDir = fixtureB.getBody().getLinearVelocityFromWorldPoint(midPoint)
+								.sub(fixtureA.getBody().getLinearVelocityFromWorldPoint(midPoint));
+						float vel = velDir.nor().len();
 
-	                    //apply drag
-	                    float dragMag = dragDot * dragMod * edgeLength * density * vel * vel;
-	                    dragMag = IntersectionUtils.min(dragMag, maxDrag);
-	                    Vector2 dragForce = new Vector2(dragMag * -velDir.x, dragMag * -velDir.y);
-	                    fixtureB.getBody().applyForce(dragForce, midPoint, true);
+						Vector2 edge = v1.sub(v0);
+						float edgeLength = edge.nor().len();
+						Vector2 normal = new Vector2(-(-1) * edge.y, -1 * edge.x);
+						float dragDot = normal.x * velDir.x + normal.y * velDir.y;
+						if (dragDot < 0)
+							continue;// normal points backwards - this is not a
+										// leading edge
 
-	                    //apply lift
-	                    float liftDot = edge.x * velDir.x + edge.y * velDir.y;
-	                    float liftMag =  dragDot * liftDot * liftMod * edgeLength * density * vel * vel;
-	                    liftMag = IntersectionUtils.min(liftMag, maxLift);
-	                    Vector2 liftDir = new Vector2(-1 * velDir.y, 1 * velDir.x);
-	                    Vector2 liftForce = new Vector2(liftMag * liftDir.x, liftMag * liftDir.y);
-	                    fixtureB.getBody().applyForce(liftForce, midPoint, true);
-	                    
-	                    // rotate correction
-	                    float angularDrag = area * -fixtureB.getBody().getAngularVelocity()+rotateCorrection;
-	                    fixtureB.getBody().applyTorque( angularDrag , true);
-	                }
-	                
-                	if(waves && area > 0.3f){
-	    				updateColumns(fixtureB.getBody(), actualIntersections);
-	    			}
+						// apply drag
+						float dragMag = dragDot * dragMod * edgeLength * density * vel * vel;
+						dragMag = IntersectionUtils.min(dragMag, maxDrag);
+						Vector2 dragForce = new Vector2(dragMag * -velDir.x, dragMag * -velDir.y);
+						fixtureB.getBody().applyForce(dragForce, midPoint, true);
+
+						// apply lift
+						float liftDot = edge.x * velDir.x + edge.y * velDir.y;
+						float liftMag = dragDot * liftDot * liftMod * edgeLength * density * vel * vel;
+						liftMag = IntersectionUtils.min(liftMag, maxLift);
+						Vector2 liftDir = new Vector2(-1 * velDir.y, 1 * velDir.x);
+						Vector2 liftForce = new Vector2(liftMag * liftDir.x, liftMag * liftDir.y);
+						fixtureB.getBody().applyForce(liftForce, midPoint, true);
+
+						// manual rotate correction
+						float angularDrag = area * -fixtureB.getBody().getAngularVelocity() + rotateCorrection;
+						fixtureB.getBody().applyTorque(angularDrag, true);
+					}
+
+					if (waves && area > 0.3f) {
+						updateColumns(fixtureB.getBody(), actualIntersections);
+					}
 				}
 			}
 		}
-		
-		if(splashParticles && !particles.isEmpty()){
-        	updateParticles();
-        }
+
+		if (waves && splashParticles && !particles.isEmpty()) {
+			updateParticles();
+		}
 	}
-	
-	private void updateParticles(){
+
+	/**
+	 * Update the position of each particle
+	 */
+	private void updateParticles() {
 		List<Particle> particlesCopy = new ArrayList<Particle>(particles);
-		for(Particle particle : particles){
-			
+		for (Particle particle : particles) {
+
 			float elapsedTime = particle.getTime() + Gdx.graphics.getDeltaTime();
 
-			float y = (float) (columns.get(0).getTargetHeight() + (Math.abs(particle.getVelocity().y) * elapsedTime) + 0.5 * -10 * elapsedTime * elapsedTime);
+			float y = (float) (columns.get(0).getTargetHeight() + (Math.abs(particle.getVelocity().y) * elapsedTime)
+					+ 0.5 * -10 * elapsedTime * elapsedTime);
 
-			if(y < columns.get(0).getTargetHeight())
+			if (y < columns.get(0).getTargetHeight())
 				particlesCopy.remove(particle);
 			else {
 				float x = (float) (particle.getInitX() + particle.getVelocity().x * elapsedTime);
-				
+
 				particle.setTime(elapsedTime);
 				particle.setPosition(new Vector2(x, y));
 			}
 		}
-		
+
 		particles = particlesCopy;
 	}
-	
-	private void updateColumns(Body body, List<Vector2> intersectionPoints){
-		
+
+	/**
+	 * Update the speed of each column in case that a body has touched it.
+	 * @param body Body to evaluate
+	 * @param intersectionPoints Part of the body that is in contact with water
+	 */
+	private void updateColumns(Body body, List<Vector2> intersectionPoints) {
+
 		float minX = Float.MAX_VALUE;
 		float maxX = Float.MIN_VALUE;
-		
-		for(Vector2 point : intersectionPoints){
+
+		for (Vector2 point : intersectionPoints) {
 			minX = Float.min(minX, point.x);
 			maxX = Float.max(maxX, point.x);
 		}
-		
-		for(int i = 0; i < columns.size(); i++){
+
+		for (int i = 0; i < columns.size(); i++) {
 			WaterColumn column = columns.get(i);
-			
-			if(column.x() >= minX && column.x() <= maxX){
+
+			if (column.x() >= minX && column.x() <= maxX) {
 				// column points
 				Point2D col1 = new Point2D(column.x(), column.getHeight());
-				Point2D col2 = new Point2D(column.x(), body.getPosition().y-column.getHeight());
-				
-				for(int j = 0; j<intersectionPoints.size()-1; j++){
+				Point2D col2 = new Point2D(column.x(), body.getPosition().y - column.getHeight());
+
+				for (int j = 0; j < intersectionPoints.size() - 1; j++) {
 					// polygon, 1 line points
 					Point2D p1 = new Point2D(intersectionPoints.get(j).x, intersectionPoints.get(j).y);
 					Point2D p2 = null;
-					if(j != intersectionPoints.size()-1){
-						p2 = new Point2D(intersectionPoints.get(j+1).x, intersectionPoints.get(j+1).y);
+					if (j != intersectionPoints.size() - 1) {
+						p2 = new Point2D(intersectionPoints.get(j + 1).x, intersectionPoints.get(j + 1).y);
 					}
-					
+
 					Point2D intersection = StraightLine2D.getIntersection(col1, col2, p1, p2);
-					if(intersection != null && intersection.y() < column.getHeight()){
-						//column.setHeight((float) intersection.y());
-						if(body.getLinearVelocity().y < 0 && column.getActualBody() == null){
+					if (intersection != null && intersection.y() < column.getHeight()) {
+						// column.setHeight((float) intersection.y());
+						if (body.getLinearVelocity().y < 0 && column.getActualBody() == null) {
 							column.setActualBody(body);
-							column.setSpeed(body.getLinearVelocity().y*3/100);
-							if(splashParticles)
-								this.createSplashParticles(column, Math.abs(body.getLinearVelocity().y));
+							column.setSpeed(body.getLinearVelocity().y * 3 / 100);
+							if (splashParticles)
+								this.createSplashParticles(column);
 						}
 					}
 				}
-			}
-			else if(body == column.getActualBody()) {
+			} else if (body == column.getActualBody()) {
 				column.setActualBody(null);
 			}
-			
-			if(body.getPosition().y < column.y() || column.getActualBody() != null && column.getActualBody().getPosition().y < column.y())
+
+			if (body.getPosition().y < column.y()
+					|| column.getActualBody() != null && column.getActualBody().getPosition().y < column.y())
 				column.setActualBody(null);
 		}
 	}
 
-	public void updateWaves() {
+	/**
+	 * Update the position of each column with respect to the speed that has been applied
+	 */
+	private void updateWaves() {
 		for (int i = 0; i < columns.size(); i++) {
 			columns.get(i).update(dampening, tension);
 		}
@@ -264,36 +326,76 @@ public class Water {
 			}
 		}
 
-		
 	}
 
-	private void createSplashParticles(WaterColumn column, float speed) {
-		float y = column.getHeight();
-		Vector2 bodyVel = column.getActualBody().getLinearVelocity();
-		
-		
-		if (speed > 3f) {
-			for (int i = 0; i < speed / 8; i++) {
-				Vector2 pos = new Vector2(column.x(), y).add(this.getRandomVector(column.getTargetHeight()));
-				
-				Vector2 vel = new Vector2();
-				if(rand.nextInt(4) == 0)
-					vel = new Vector2(0, bodyVel.y/2 + rand.nextFloat() * bodyVel.y/2);
-				else if(pos.x < column.getActualBody().getPosition().x)
-					vel = new Vector2(bodyVel.y/5+ rand.nextFloat() * bodyVel.y/5, bodyVel.y/3 + rand.nextFloat() * bodyVel.y/3);
-				else
-					vel = new Vector2(-bodyVel.y/5 + rand.nextFloat() * bodyVel.y/5, bodyVel.y/3 + rand.nextFloat() * bodyVel.y/3);
-				
-				this.createParticle(pos, vel);
-			}
-		}
-	}
-
+	/**
+	 * Create a new splash particle in the given position with a specific velocity
+	 * @param pos Init position of the splash particle
+	 * @param velocity Init velocity of the splash particle
+	 */
 	private void createParticle(Vector2 pos, Vector2 velocity) {
 		Particle particle = new Particle(pos, velocity, 0);
 		particle.setInitX(pos.x);
 		particle.setTime(0);
 		particles.add(particle);
+	}
+
+	/**
+	 * Creates particles in a given position and velocity
+	 * @param column We use it to know the speed of the body that is touching it
+	 */
+	private void createSplashParticles(WaterColumn column) {
+		float y = column.getHeight();
+		Vector2 bodyVel = column.getActualBody().getLinearVelocity();
+
+		if (bodyVel.y > 3f) {
+			for (int i = 0; i < bodyVel.y / 8; i++) {
+				Vector2 pos = new Vector2(column.x(), y).add(this.getRandomVector(column.getTargetHeight()));
+
+				Vector2 vel = new Vector2();
+				if (rand.nextInt(4) == 0)
+					vel = new Vector2(0, bodyVel.y / 2 + rand.nextFloat() * bodyVel.y / 2);
+				else if (pos.x < column.getActualBody().getPosition().x)
+					vel = new Vector2(bodyVel.y / 5 + rand.nextFloat() * bodyVel.y / 5,
+							bodyVel.y / 3 + rand.nextFloat() * bodyVel.y / 3);
+				else
+					vel = new Vector2(-bodyVel.y / 5 + rand.nextFloat() * bodyVel.y / 5,
+							bodyVel.y / 3 + rand.nextFloat() * bodyVel.y / 3);
+
+				this.createParticle(pos, vel);
+			}
+		}
+	}
+
+	public void draw(Camera camera) {
+
+		if (hasWaves()) {
+
+			polyBatch.setProjectionMatrix(camera.combined);
+
+			polyBatch.begin();
+			for (int i = 0; i < columns.size() - 1; i++) {
+				WaterColumn c1 = columns.get(i);
+				WaterColumn c2 = columns.get(i + 1);
+				float[] vertices = new float[] { c1.x(), c1.y(), c1.x(), c1.getHeight(), c2.x(), c2.getHeight(), c2.x(),
+						c2.y() };
+				PolygonSprite sprite = new PolygonSprite(new PolygonRegion(textureWater, vertices,
+						new EarClippingTriangulator().computeTriangles(vertices).toArray()));
+				sprite.draw(polyBatch, Math.min(1, Math.max(0.95f, c1.getHeight() / c1.getTargetHeight())));
+			}
+			polyBatch.end();
+
+			if (hasSplashParticles()) {
+				spriteBatch.setProjectionMatrix(camera.combined);
+				spriteBatch.begin();
+				for (Particle p : particles) {
+					spriteBatch.draw(textureDrop, p.getPosition().x, p.getPosition().y, 0.1f, 0.1f);
+				}
+				spriteBatch.end();
+			}
+
+			updateWaves();
+		}
 	}
 
 	private Vector2 getRandomVector(float maxLength) {
@@ -310,6 +412,16 @@ public class Water {
 		res.y = res.y * magnitude;
 
 		return res;
+	}
+
+	@Override
+	public void dispose() {
+		if(spriteBatch != null) spriteBatch.dispose();
+		if(polyBatch != null) polyBatch.dispose();
+		if(textureDrop != null) textureDrop.dispose();
+		if(textureDrop != null) textureWater.getTexture().dispose();
+		if(columns != null) columns.clear();
+		if(columns != null) particles.clear();
 	}
 
 	public List<WaterColumn> getColumns() {
@@ -336,16 +448,8 @@ public class Water {
 		return waves;
 	}
 
-	public void setWaves(boolean waves) {
-		this.waves = waves;
-	}
-
-	public boolean isSplashParticles() {
+	public boolean hasSplashParticles() {
 		return splashParticles;
-	}
-
-	public void setSplashParticles(boolean splashParticles) {
-		this.splashParticles = splashParticles;
 	}
 
 	public List<Particle> getParticles() {
@@ -354,6 +458,14 @@ public class Water {
 
 	public void setParticles(List<Particle> particles) {
 		this.particles = particles;
+	}
+
+	public Set<Pair<Fixture, Fixture>> getFixturePairs() {
+		return fixturePairs;
+	}
+
+	public void setFixturePairs(Set<Pair<Fixture, Fixture>> fixturePairs) {
+		this.fixturePairs = fixturePairs;
 	}
 
 }

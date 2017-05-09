@@ -4,15 +4,6 @@ import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.PolygonRegion;
-import com.badlogic.gdx.graphics.g2d.PolygonSprite;
-import com.badlogic.gdx.graphics.g2d.PolygonSpriteBatch;
-import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.g2d.TextureRegion;
-import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
-import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
-import com.badlogic.gdx.math.EarClippingTriangulator;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
@@ -24,9 +15,7 @@ import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.utils.viewport.StretchViewport;
 import com.dream.water.effect.MyContactListener;
-import com.dream.water.effect.Particle;
 import com.dream.water.effect.Water;
-import com.dream.water.effect.WaterColumn;
 
 public class GameMain extends ApplicationAdapter {
 
@@ -35,14 +24,8 @@ public class GameMain extends ApplicationAdapter {
 
 	World world;
 	Water water;
-	MyContactListener contacts;
 	Box2DDebugRenderer debugRenderer;
 	
-	SpriteBatch spriteBatch;
-	PolygonSpriteBatch polyBatch;
-	TextureRegion textureWater;
-	Texture textureDrop;
-
 	@Override
 	public void create() {
 		camera = new OrthographicCamera();
@@ -50,20 +33,11 @@ public class GameMain extends ApplicationAdapter {
 
 		// Create box2d world
 		world = new World(new Vector2(0, -10), true);
-		contacts = new MyContactListener();
-		world.setContactListener(contacts);
+		world.setContactListener(new MyContactListener());
 		debugRenderer = new Box2DDebugRenderer();
 		
-		textureDrop = new Texture(Gdx.files.internal("water.png"));
-		spriteBatch = new SpriteBatch();
-		spriteBatch.setProjectionMatrix(camera.combined);
-		polyBatch = new PolygonSpriteBatch();
-		polyBatch.setProjectionMatrix(camera.combined);
-	    textureWater = new TextureRegion(new Texture(Gdx.files.internal("water.png")), 4, 1);
-	    
-		water = new Water();
+		water = new Water(false, false);
 		water.createBody(world, 4f, 0, 7, 2, 0.85f); //world, x, y, width, height, density
-		water.setContactListener(contacts);
 	}
 	
 	private void createBody() {
@@ -105,36 +79,16 @@ public class GameMain extends ApplicationAdapter {
 		}
 		
 		world.step(1/60f, 6, 2);
+		
 		water.update();
-		// draw columns
-		if(water.hasWaves()){
-			
-			polyBatch.begin();
-			for(int i = 0; i< water.getColumns().size()-1; i++){
-				WaterColumn c1 = water.getColumns().get(i);
-				WaterColumn c2 = water.getColumns().get(i+1);
-				float[] vertices = new float[]{c1.x(), c1.y(), c1.x(), c1.getHeight(), c2.x(), c2.getHeight(), c2.x(), c2.y()};
-				PolygonSprite sprite = new PolygonSprite(new PolygonRegion(textureWater,
-			            vertices, new EarClippingTriangulator().computeTriangles(
-			                  vertices).toArray()));
-				sprite.draw(polyBatch, Math.min(1, Math.max(0.9f, c1.getHeight()/c1.getTargetHeight())));
-			}
-			polyBatch.end();
-			
-			spriteBatch.begin();
-			for(Particle p : water.getParticles()){
-				spriteBatch.draw(textureDrop, p.getPosition().x, p.getPosition().y, 0.1f, 0.1f);
-			}
-			spriteBatch.end();
-			
-			water.updateWaves();
-		}
+		water.draw(camera);
 		
 		debugRenderer.render(world, camera.combined);
 	}
 
 	@Override
 	public void dispose() {
+		water.dispose();
 		world.dispose();
 		debugRenderer.dispose();
 	}
