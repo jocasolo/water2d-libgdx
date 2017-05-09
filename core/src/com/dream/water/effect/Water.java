@@ -341,26 +341,26 @@ public class Water implements Disposable {
 	}
 
 	/**
-	 * Creates particles in a given position and velocity
+	 * Creates particles in random position and velocity near to the body
 	 * @param column We use it to know the speed of the body that is touching it
 	 */
 	private void createSplashParticles(WaterColumn column) {
 		float y = column.getHeight();
-		Vector2 bodyVel = column.getActualBody().getLinearVelocity();
+		float bodyVel = Math.abs(column.getActualBody().getLinearVelocity().y);
 
-		if (bodyVel.y > 3f) {
-			for (int i = 0; i < bodyVel.y / 8; i++) {
+		if (Math.abs(bodyVel) > 3f) {
+			for (int i = 0; i < bodyVel / 8; i++) {
 				Vector2 pos = new Vector2(column.x(), y).add(this.getRandomVector(column.getTargetHeight()));
 
 				Vector2 vel = new Vector2();
 				if (rand.nextInt(4) == 0)
-					vel = new Vector2(0, bodyVel.y / 2 + rand.nextFloat() * bodyVel.y / 2);
+					vel = new Vector2(0, bodyVel / 2 + rand.nextFloat() * bodyVel / 2);
 				else if (pos.x < column.getActualBody().getPosition().x)
-					vel = new Vector2(bodyVel.y / 5 + rand.nextFloat() * bodyVel.y / 5,
-							bodyVel.y / 3 + rand.nextFloat() * bodyVel.y / 3);
+					vel = new Vector2(-bodyVel / 5 + rand.nextFloat() * bodyVel / 5,
+							bodyVel / 3 + rand.nextFloat() * bodyVel / 3);
 				else
-					vel = new Vector2(-bodyVel.y / 5 + rand.nextFloat() * bodyVel.y / 5,
-							bodyVel.y / 3 + rand.nextFloat() * bodyVel.y / 3);
+					vel = new Vector2(bodyVel / 5 + rand.nextFloat() * bodyVel / 5,
+							bodyVel / 3 + rand.nextFloat() * bodyVel / 3);
 
 				this.createParticle(pos, vel);
 			}

@@ -36,7 +36,7 @@ public class GameMain extends ApplicationAdapter {
 		world.setContactListener(new MyContactListener());
 		debugRenderer = new Box2DDebugRenderer();
 		
-		water = new Water(false, false);
+		water = new Water();
 		water.createBody(world, 4f, 0, 7, 2, 0.85f); //world, x, y, width, height, density
 	}
 	
