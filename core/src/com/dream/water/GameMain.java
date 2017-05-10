@@ -37,7 +37,27 @@ public class GameMain extends ApplicationAdapter {
 		debugRenderer = new Box2DDebugRenderer();
 		
 		water = new Water();
-		water.createBody(world, 4f, 0, 7, 2, 0.85f); //world, x, y, width, height, density
+		water.createBody(world, 4f, 0, 7, 2); //world, x, y, width, height, density
+		water.setDebugMode(true);
+	}
+	
+	@Override
+	public void render () {
+		// Clean screen
+		Gdx.gl.glClearColor(1, 1, 1, 1);
+		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+		
+		// Input
+		if(Gdx.input.justTouched()){
+			createBody();
+		}
+		
+		world.step(1/60f, 6, 2);
+		
+		water.update();
+		water.draw(camera);
+		
+		debugRenderer.render(world, camera.combined);
 	}
 	
 	private void createBody() {
@@ -65,25 +85,6 @@ public class GameMain extends ApplicationAdapter {
 		body.createFixture(fixtureDef);
 
 		square.dispose();
-	}
-
-	@Override
-	public void render () {
-		// Clean screen
-		Gdx.gl.glClearColor(1, 1, 1, 1);
-		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-		
-		// Input
-		if(Gdx.input.justTouched()){
-			createBody();
-		}
-		
-		world.step(1/60f, 6, 2);
-		
-		water.update();
-		water.draw(camera);
-		
-		debugRenderer.render(world, camera.combined);
 	}
 
 	@Override

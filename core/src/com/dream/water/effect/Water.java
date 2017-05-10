@@ -14,6 +14,8 @@ import com.badlogic.gdx.graphics.g2d.PolygonSprite;
 import com.badlogic.gdx.graphics.g2d.PolygonSpriteBatch;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
 import com.badlogic.gdx.math.EarClippingTriangulator;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
@@ -34,9 +36,11 @@ public class Water implements Disposable {
 
 	private boolean waves;
 	private boolean splashParticles;
+	private boolean debugMode;
 
 	SpriteBatch spriteBatch;
 	PolygonSpriteBatch polyBatch;
+	ShapeRenderer shapeBatch;
 	TextureRegion textureWater;
 	Texture textureDrop;
 	
@@ -47,9 +51,10 @@ public class Water implements Disposable {
 
 	private static Random rand = new Random();
 
-	private final float tension = 0.025f;
-	private final float dampening = 0.025f;
-	private final float spread = 0.25f;
+	private float tension = 0.025f;
+	private float dampening = 0.025f;
+	private float spread = 0.25f;
+	private float density = 0.85f;
 	
 	private final float columnSparation = 0.04f; // 4 px between every column
 	private final float rotateCorrection = 0.0627f; // Manual correction to prevent rotation of bodies in contact with water
@@ -71,6 +76,7 @@ public class Water implements Disposable {
 		this.waves = waves;
 		this.splashParticles = splashParticles;
 		this.fixturePairs = new HashSet<Pair<Fixture, Fixture>>();
+		this.setDebugMode(false);
 
 		if (waves) {
 			textureWater = new TextureRegion(new Texture(Gdx.files.internal("water.png")));
@@ -83,6 +89,8 @@ public class Water implements Disposable {
 			particles = new ArrayList<Particle>();
 		}
 
+		shapeBatch = new ShapeRenderer();
+		shapeBatch.setColor(0, 0.5f, 0.5f, 1);
 	}
 
 	/**
@@ -94,7 +102,8 @@ public class Water implements Disposable {
 	 * @param height Body height
 	 * @param density Body density
 	 */
-	public void createBody(World world, float x, float y, float width, float height, float density) {
+	public void createBody(World world, float x, float y, float width, float height) {
+		
 		BodyDef bodyDef = new BodyDef();
 		bodyDef.type = BodyType.StaticBody;
 		bodyDef.position.set(x, y);
@@ -109,7 +118,6 @@ public class Water implements Disposable {
 		// Create a fixture definition to apply our shape to
 		FixtureDef fixtureDef = new FixtureDef();
 		fixtureDef.shape = square;
-		fixtureDef.density = density;
 		
 		// Must be a sensor
 		fixtureDef.isSensor = true;
@@ -142,13 +150,22 @@ public class Water implements Disposable {
 				Fixture fixtureA = pair.getKey(); // water
 				Fixture fixtureB = pair.getValue(); //dynamic body
 
-				float density = fixtureA.getDensity(); // water density
-
 				List<Vector2> intersectionPoints = new ArrayList<Vector2>();
 				if (IntersectionUtils.findIntersectionOfFixtures(fixtureA, fixtureB, intersectionPoints)) {
 
 					List<Vector2> actualIntersections = new ArrayList<Vector2>();
 					actualIntersections = IntersectionUtils.copyList(intersectionPoints);
+					
+					if(debugMode){
+						shapeBatch.begin(ShapeType.Line);
+						for(int i=0; i<intersectionPoints.size()-1; i++){
+							Vector2 v1 = intersectionPoints.get(i);
+							Vector2 v2 = intersectionPoints.get(i+1);
+							
+							shapeBatch.line(v1, v2);
+						}
+						shapeBatch.end();
+					}
 
 					// find centroid and area
 					SimplePolygon2D interPolygon = IntersectionUtils.getIntersectionPolygon(intersectionPoints);
@@ -157,7 +174,7 @@ public class Water implements Disposable {
 					float area = (float) interPolygon.area();
 
 					// apply buoyancy force (fixtureA is the fluid)
-					float displacedMass = fixtureA.getDensity() * area;
+					float displacedMass = this.density * area;
 					Vector2 buoyancyForce = new Vector2(displacedMass * -world.getGravity().x,
 							displacedMass * -world.getGravity().y);
 					fixtureB.getBody().applyForce(buoyancyForce, centroid, true);
@@ -187,14 +204,14 @@ public class Water implements Disposable {
 										// leading edge
 
 						// apply drag
-						float dragMag = dragDot * dragMod * edgeLength * density * vel * vel;
+						float dragMag = dragDot * dragMod * edgeLength * this.density * vel * vel;
 						dragMag = IntersectionUtils.min(dragMag, maxDrag);
 						Vector2 dragForce = new Vector2(dragMag * -velDir.x, dragMag * -velDir.y);
 						fixtureB.getBody().applyForce(dragForce, midPoint, true);
 
 						// apply lift
 						float liftDot = edge.x * velDir.x + edge.y * velDir.y;
-						float liftMag = dragDot * liftDot * liftMod * edgeLength * density * vel * vel;
+						float liftMag = dragDot * liftDot * liftMod * edgeLength * this.density * vel * vel;
 						liftMag = IntersectionUtils.min(liftMag, maxLift);
 						Vector2 liftDir = new Vector2(-1 * velDir.y, 1 * velDir.x);
 						Vector2 liftForce = new Vector2(liftMag * liftDir.x, liftMag * liftDir.y);
@@ -288,8 +305,7 @@ public class Water implements Disposable {
 				column.setActualBody(null);
 			}
 
-			if (body.getPosition().y < column.y()
-					|| column.getActualBody() != null && column.getActualBody().getPosition().y < column.y())
+			if (body.getPosition().y < column.y() || column.getActualBody() != null && column.getActualBody().getPosition().y < column.y())
 				column.setActualBody(null);
 		}
 	}
@@ -372,16 +388,26 @@ public class Water implements Disposable {
 		if (hasWaves()) {
 
 			polyBatch.setProjectionMatrix(camera.combined);
+			shapeBatch.setProjectionMatrix(camera.combined);
 
 			polyBatch.begin();
 			for (int i = 0; i < columns.size() - 1; i++) {
+				
 				WaterColumn c1 = columns.get(i);
 				WaterColumn c2 = columns.get(i + 1);
-				float[] vertices = new float[] { c1.x(), c1.y(), c1.x(), c1.getHeight(), c2.x(), c2.getHeight(), c2.x(),
-						c2.y() };
-				PolygonSprite sprite = new PolygonSprite(new PolygonRegion(textureWater, vertices,
-						new EarClippingTriangulator().computeTriangles(vertices).toArray()));
-				sprite.draw(polyBatch, Math.min(1, Math.max(0.95f, c1.getHeight() / c1.getTargetHeight())));
+				
+				if(!debugMode){
+					float[] vertices = new float[] { c1.x(), c1.y(), c1.x(), c1.getHeight(), c2.x(), c2.getHeight(), c2.x(),
+							c2.y() };
+					PolygonSprite sprite = new PolygonSprite(new PolygonRegion(textureWater, vertices,
+							new EarClippingTriangulator().computeTriangles(vertices).toArray()));
+					sprite.draw(polyBatch, Math.min(1, Math.max(0.95f, c1.getHeight() / c1.getTargetHeight())));
+				}
+				else {
+					shapeBatch.begin(ShapeType.Line);
+					shapeBatch.line(new Vector2(c1.x(), c1.y()), new Vector2(c1.x(), c1.getHeight()));
+					shapeBatch.end();
+				}
 			}
 			polyBatch.end();
 
@@ -393,7 +419,7 @@ public class Water implements Disposable {
 				}
 				spriteBatch.end();
 			}
-
+			
 			updateWaves();
 		}
 	}
@@ -418,6 +444,7 @@ public class Water implements Disposable {
 	public void dispose() {
 		if(spriteBatch != null) spriteBatch.dispose();
 		if(polyBatch != null) polyBatch.dispose();
+		if(shapeBatch != null) shapeBatch.dispose(); 
 		if(textureDrop != null) textureDrop.dispose();
 		if(textureDrop != null) textureWater.getTexture().dispose();
 		if(columns != null) columns.clear();
@@ -466,6 +493,42 @@ public class Water implements Disposable {
 
 	public void setFixturePairs(Set<Pair<Fixture, Fixture>> fixturePairs) {
 		this.fixturePairs = fixturePairs;
+	}
+	
+	public float getDensity() {
+		return density;
+	}
+
+	public void setDensity(float density) {
+		this.density = density;
+	}
+	
+	public float getColumnSparation() {
+		return columnSparation;
+	}
+
+	public float getRotateCorrection() {
+		return rotateCorrection;
+	}
+
+	public void setTension(float tension) {
+		this.tension = tension;
+	}
+
+	public void setDampening(float dampening) {
+		this.dampening = dampening;
+	}
+
+	public void setSpread(float spread) {
+		this.spread = spread;
+	}
+
+	public boolean isDebugMode() {
+		return debugMode;
+	}
+
+	public void setDebugMode(boolean debugMode) {
+		this.debugMode = debugMode;
 	}
 
 }
