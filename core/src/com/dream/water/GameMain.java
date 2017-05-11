@@ -2,6 +2,7 @@ package com.dream.water;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input.Keys;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
@@ -37,8 +38,8 @@ public class GameMain extends ApplicationAdapter {
 		debugRenderer = new Box2DDebugRenderer();
 		
 		water = new Water();
-		water.createBody(world, 4f, 0, 7, 2); //world, x, y, width, height, density
-		water.setDebugMode(true);
+		water.createBody(world, 4f, 0, 7, 2); //world, x, y, width, height
+		//water.setDebugMode(true);
 	}
 	
 	@Override
@@ -47,9 +48,13 @@ public class GameMain extends ApplicationAdapter {
 		Gdx.gl.glClearColor(1, 1, 1, 1);
 		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 		
-		// Input
-		if(Gdx.input.justTouched()){
+		// creates a square at the clicked point
+		if(Gdx.input.justTouched()){ 
 			createBody();
+		}
+		// enable or disable debug mode
+		if(Gdx.input.isKeyJustPressed(Keys.D)){ 
+			water.setDebugMode(!water.isDebugMode());
 		}
 		
 		world.step(1/60f, 6, 2);

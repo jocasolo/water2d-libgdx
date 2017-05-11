@@ -2,6 +2,9 @@ package com.dream.water.effect;
 
 import com.badlogic.gdx.math.Vector2;
 
+/**
+ * Particle representing a drop of water formed when a body impacts against water
+ */
 public class Particle {
 	
 	private Vector2 position;
@@ -9,7 +12,12 @@ public class Particle {
 	private float time;
 	private float initX;
 	
-	public Particle(Vector2 position, Vector2 velocity, float orientation){
+	/**
+	 * Main constructor
+	 * @param position Position where the particle will be created
+	 * @param velocity Initial velocity of the particle
+	 */
+	public Particle(Vector2 position, Vector2 velocity){
 		this.position = position;
 		this.velocity = velocity;
 	}

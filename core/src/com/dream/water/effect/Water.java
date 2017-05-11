@@ -32,6 +32,9 @@ import math.geom2d.Point2D;
 import math.geom2d.line.StraightLine2D;
 import math.geom2d.polygon.SimplePolygon2D;
 
+/**
+ * Allows to create an object to simulate the behavior of water in interaction with other bodies
+ */
 public class Water implements Disposable {
 
 	private boolean waves;
@@ -44,8 +47,8 @@ public class Water implements Disposable {
 	TextureRegion textureWater;
 	Texture textureDrop;
 	
-	private Set<Pair<Fixture, Fixture>> fixturePairs; // contacts between this object and dynamic bodies
-	private List<WaterColumn> columns; // for waves
+	private Set<Pair<Fixture, Fixture>> fixturePairs; // contacts between this object and other dynamic bodies
+	private List<WaterColumn> columns; // represent the height of the waves
 	List<Particle> particles; // splash particles
 	private Body body; // Box2d body
 
@@ -90,7 +93,7 @@ public class Water implements Disposable {
 		}
 
 		shapeBatch = new ShapeRenderer();
-		shapeBatch.setColor(0, 0.5f, 0.5f, 1);
+		shapeBatch.setColor(0, 0.5f, 1, 1);
 	}
 
 	/**
@@ -155,17 +158,6 @@ public class Water implements Disposable {
 
 					List<Vector2> actualIntersections = new ArrayList<Vector2>();
 					actualIntersections = IntersectionUtils.copyList(intersectionPoints);
-					
-					if(debugMode){
-						shapeBatch.begin(ShapeType.Line);
-						for(int i=0; i<intersectionPoints.size()-1; i++){
-							Vector2 v1 = intersectionPoints.get(i);
-							Vector2 v2 = intersectionPoints.get(i+1);
-							
-							shapeBatch.line(v1, v2);
-						}
-						shapeBatch.end();
-					}
 
 					// find centroid and area
 					SimplePolygon2D interPolygon = IntersectionUtils.getIntersectionPolygon(intersectionPoints);
@@ -205,14 +197,14 @@ public class Water implements Disposable {
 
 						// apply drag
 						float dragMag = dragDot * dragMod * edgeLength * this.density * vel * vel;
-						dragMag = IntersectionUtils.min(dragMag, maxDrag);
+						dragMag = Float.min(dragMag, maxDrag);
 						Vector2 dragForce = new Vector2(dragMag * -velDir.x, dragMag * -velDir.y);
 						fixtureB.getBody().applyForce(dragForce, midPoint, true);
 
 						// apply lift
 						float liftDot = edge.x * velDir.x + edge.y * velDir.y;
 						float liftMag = dragDot * liftDot * liftMod * edgeLength * this.density * vel * vel;
-						liftMag = IntersectionUtils.min(liftMag, maxLift);
+						liftMag = Float.min(liftMag, maxLift);
 						Vector2 liftDir = new Vector2(-1 * velDir.y, 1 * velDir.x);
 						Vector2 liftForce = new Vector2(liftMag * liftDir.x, liftMag * liftDir.y);
 						fixtureB.getBody().applyForce(liftForce, midPoint, true);
@@ -350,7 +342,7 @@ public class Water implements Disposable {
 	 * @param velocity Init velocity of the splash particle
 	 */
 	private void createParticle(Vector2 pos, Vector2 velocity) {
-		Particle particle = new Particle(pos, velocity, 0);
+		Particle particle = new Particle(pos, velocity);
 		particle.setInitX(pos.x);
 		particle.setTime(0);
 		particles.add(particle);
@@ -366,7 +358,7 @@ public class Water implements Disposable {
 
 		if (Math.abs(bodyVel) > 3f) {
 			for (int i = 0; i < bodyVel / 8; i++) {
-				Vector2 pos = new Vector2(column.x(), y).add(this.getRandomVector(column.getTargetHeight()));
+				Vector2 pos = new Vector2(column.x(), y).add(IntersectionUtils.getRandomVector(column.getTargetHeight()));
 
 				Vector2 vel = new Vector2();
 				if (rand.nextInt(4) == 0)
@@ -383,13 +375,20 @@ public class Water implements Disposable {
 		}
 	}
 
+	/**
+	 * Draws the waves and splash particles if they exist
+	 * @param camera Camera used in the current stage
+	 */
 	public void draw(Camera camera) {
 
 		if (hasWaves()) {
+			
+			updateWaves();
 
 			polyBatch.setProjectionMatrix(camera.combined);
 			shapeBatch.setProjectionMatrix(camera.combined);
 
+			// draw columns water
 			polyBatch.begin();
 			for (int i = 0; i < columns.size() - 1; i++) {
 				
@@ -401,7 +400,7 @@ public class Water implements Disposable {
 							c2.y() };
 					PolygonSprite sprite = new PolygonSprite(new PolygonRegion(textureWater, vertices,
 							new EarClippingTriangulator().computeTriangles(vertices).toArray()));
-					sprite.draw(polyBatch, Math.min(1, Math.max(0.95f, c1.getHeight() / c1.getTargetHeight())));
+					sprite.draw(polyBatch, Math.min(1, Math.max(0.95f, c1.getHeight() / c1.getTargetHeight()))); // remove transparency for waves here if you don't want it
 				}
 				else {
 					shapeBatch.begin(ShapeType.Line);
@@ -410,34 +409,28 @@ public class Water implements Disposable {
 				}
 			}
 			polyBatch.end();
-
+			
+			// draw splash particles
 			if (hasSplashParticles()) {
-				spriteBatch.setProjectionMatrix(camera.combined);
-				spriteBatch.begin();
-				for (Particle p : particles) {
-					spriteBatch.draw(textureDrop, p.getPosition().x, p.getPosition().y, 0.1f, 0.1f);
+				if(!debugMode){
+					spriteBatch.setProjectionMatrix(camera.combined);
+					spriteBatch.begin();
+					for (Particle p : particles) {
+						spriteBatch.draw(textureDrop, p.getPosition().x, p.getPosition().y, 0.1f, 0.1f);
+					}
+					spriteBatch.end();
 				}
-				spriteBatch.end();
+				else {
+					shapeBatch.setProjectionMatrix(camera.combined);
+					shapeBatch.begin(ShapeType.Line);
+					for (Particle p : particles) {
+						shapeBatch.rect(p.getPosition().x, p.getPosition().y, 0.05f, 0.05f);
+					}
+					shapeBatch.end();
+				}
 			}
 			
-			updateWaves();
 		}
-	}
-
-	private Vector2 getRandomVector(float maxLength) {
-		return this.fromPolar(this.getRandomFloat(-Math.PI, Math.PI), this.getRandomFloat(0, maxLength));
-	}
-
-	private float getRandomFloat(double min, double max) {
-		return (float) (rand.nextDouble() * (max - min) + min);
-	}
-
-	private Vector2 fromPolar(float angle, float magnitude) {
-		Vector2 res = new Vector2((float) Math.cos(angle), (float) Math.sin(angle));
-		res.x = res.x * magnitude;
-		res.y = res.y * magnitude;
-
-		return res;
 	}
 
 	@Override
@@ -448,7 +441,9 @@ public class Water implements Disposable {
 		if(textureDrop != null) textureDrop.dispose();
 		if(textureDrop != null) textureWater.getTexture().dispose();
 		if(columns != null) columns.clear();
-		if(columns != null) particles.clear();
+		if(particles != null) particles.clear();
+		if(fixturePairs != null) fixturePairs.clear();
+		if(body != null) body.getWorld().destroyBody(body);
 	}
 
 	public List<WaterColumn> getColumns() {

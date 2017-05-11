@@ -2,6 +2,7 @@ package com.dream.water.effect;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Fixture;
@@ -11,12 +12,19 @@ import com.badlogic.gdx.physics.box2d.Shape;
 import math.geom2d.Point2D;
 import math.geom2d.polygon.SimplePolygon2D;
 
+/**
+ * Utilities to calculate the intersection between polygons
+ */
 public class IntersectionUtils {
 
-	public static boolean inside(Vector2 cp1, Vector2 cp2, Vector2 p) {
-		return (cp2.x - cp1.x) * (p.y - cp1.y) > (cp2.y - cp1.y) * (p.x - cp1.x);
-	}
-
+	/**
+	 * Gets the point where two lines intersect
+	 * @param cp1 Polygon side point 1
+	 * @param cp2 Polygon side point 2
+	 * @param s Line start point
+	 * @param e Line end point
+	 * @return The point where the two lines intersect or null if the don't cross
+	 */
 	public static Vector2 intersection(Vector2 cp1, Vector2 cp2, Vector2 s, Vector2 e) {
 		Vector2 dc = new Vector2(cp1.x - cp2.x, cp1.y - cp2.y);
 		Vector2 dp = new Vector2(s.x - e.x, s.y - e.y);
@@ -30,7 +38,26 @@ public class IntersectionUtils {
 		
 		return null;
 	}
+	
+	/**
+	 * Checks if one point is inside of a side of a polygon
+	 * @param cp1 Polygon point 1
+	 * @param cp2 Polygon point 2
+	 * @param p Point to check
+	 * @return Trye if the point is insede of the polygon
+	 */
+	public static boolean inside(Vector2 cp1, Vector2 cp2, Vector2 p) {
+		return (cp2.x - cp1.x) * (p.y - cp1.y) > (cp2.y - cp1.y) * (p.x - cp1.x);
+	}
 
+	
+	/**
+	 * Finds the points where two fixtures intersects
+	 * @param fA Fixture A (water)
+	 * @param fB Fixture B (dynamic body)
+	 * @param outputVertices It will be set with the points that form the result intersection polygon
+	 * @return True if the two fixtures intersect
+	 */
 	public static boolean findIntersectionOfFixtures(Fixture fA, Fixture fB, List<Vector2> outputVertices) {
 		// currently this only handles polygon or circles
 		if (fA.getShape().getType() != Shape.Type.Polygon && fA.getShape().getType() != Shape.Type.Circle || 
@@ -94,6 +121,11 @@ public class IntersectionUtils {
 		return !outputVertices.isEmpty();
 	}
 
+	/**
+	 * Creates a SimplePolygon2d object
+	 * @param vertices Vertices of the polygon
+	 * @return Polygon result
+	 */
 	public static SimplePolygon2D getIntersectionPolygon(List<Vector2> vertices) {
 		
 		List<Point2D> points = new ArrayList<Point2D>();
@@ -104,6 +136,11 @@ public class IntersectionUtils {
 		return new SimplePolygon2D(points);
 	}
 	
+	/**
+	 * Because the algorithm is based on vertices, and the circles do not have vertices, we create a square around it.
+	 * @param fixture Circle fixture
+	 * @return A square instead of the circle
+	 */
 	private static PolygonShape circleToSquare(Fixture fixture) {
 		Vector2 position = fixture.getBody().getLocalCenter();
 		float x = position.x;
@@ -120,15 +157,49 @@ public class IntersectionUtils {
 
 		return octagon;
 	}
-
-	public static Vector2 min(Vector2 a, Vector2 b) {
-		return new Vector2(min(a.x, b.x), min(b.x, b.y));
+	
+	/**
+	 * Obtains a random vector
+	 * @param maxLength Max length
+	 * @return A randon vector
+	 */
+	public static Vector2 getRandomVector(float maxLength) {
+		return fromPolar(getRandomFloat(-Math.PI, Math.PI), getRandomFloat(0, maxLength));
 	}
 
-	public static float min(float a, float b) {
-		return a < b ? a : b;
+	/**
+	 * Obtains a random float between min and max value
+	 * @param min Min value
+	 * @param max Max value
+	 * @return Random float
+	 */
+	private static float getRandomFloat(double min, double max) {
+		return (float) (new Random().nextDouble() * (max - min) + min);
+	}
+
+	private static Vector2 fromPolar(float angle, float magnitude) {
+		Vector2 res = new Vector2((float) Math.cos(angle), (float) Math.sin(angle));
+		res.x = res.x * magnitude;
+		res.y = res.y * magnitude;
+
+		return res;
+	}
+
+	/**
+	 * Obtains the minimal vector resulting between the coordinates of two vectors
+	 * @param a Vector A
+	 * @param b Vector B
+	 * @return Minimal vector among those provided
+	 */
+	public static Vector2 min(Vector2 a, Vector2 b) {
+		return new Vector2(Float.min(a.x, b.x), Float.min(b.x, b.y));
 	}
 	
+	/**
+	 * Copy a list avoiding using references
+	 * @param list List to be copied
+	 * @return A new list copy of the provided
+	 */
 	public static List<Vector2> copyList (List<Vector2> list){
 		List<Vector2> res = new ArrayList<Vector2>();
 		for(Vector2 vector : list){
