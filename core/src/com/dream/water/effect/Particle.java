@@ -9,6 +9,7 @@ public class Particle {
 	
 	private Vector2 position;
 	private Vector2 velocity;
+	private float radius;
 	private float time;
 	private float initX;
 	
@@ -16,8 +17,9 @@ public class Particle {
 	 * Main constructor
 	 * @param position Position where the particle will be created
 	 * @param velocity Initial velocity of the particle
+	 * @param radius Radius of the texture
 	 */
-	public Particle(Vector2 position, Vector2 velocity){
+	public Particle(Vector2 position, Vector2 velocity, float radius){
 		this.position = position;
 		this.velocity = velocity;
 	}
@@ -52,6 +54,14 @@ public class Particle {
 
 	public void setInitX(float initX) {
 		this.initX = initX;
+	}
+
+	public float getRadius() {
+		return radius;
+	}
+
+	public void setRadius(float radius) {
+		this.radius = radius;
 	}
 
 }

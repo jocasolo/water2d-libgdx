@@ -86,7 +86,7 @@ public class Water implements Disposable {
 		}
 
 		if (splashParticles) {
-			textureDrop = new Texture(Gdx.files.internal("water.png"));
+			textureDrop = new Texture(Gdx.files.internal("drop.png"));
 			spriteBatch = new SpriteBatch();
 			particles = new ArrayList<Particle>();
 		}
@@ -340,10 +340,11 @@ public class Water implements Disposable {
 	 * @param pos Init position of the splash particle
 	 * @param velocity Init velocity of the splash particle
 	 */
-	private void createParticle(Vector2 pos, Vector2 velocity) {
-		Particle particle = new Particle(pos, velocity);
+	private void createParticle(Vector2 pos, Vector2 velocity, float radius) {
+		Particle particle = new Particle(pos, velocity, radius);
 		particle.setInitX(pos.x);
 		particle.setTime(0);
+		particle.setRadius(radius);
 		particles.add(particle);
 	}
 
@@ -368,8 +369,10 @@ public class Water implements Disposable {
 				else
 					vel = new Vector2(bodyVel / 5 + rand.nextFloat() * bodyVel / 5,
 							bodyVel / 3 + rand.nextFloat() * bodyVel / 3);
+				
+				float radius = new Random().nextFloat() * (0.05f - 0.025f) + 0.025f;
 
-				this.createParticle(pos, vel);
+				this.createParticle(pos, vel, radius);
 			}
 		}
 	}
@@ -415,7 +418,7 @@ public class Water implements Disposable {
 					spriteBatch.setProjectionMatrix(camera.combined);
 					spriteBatch.begin();
 					for (Particle p : particles) {
-						spriteBatch.draw(textureDrop, p.getPosition().x, p.getPosition().y, 0.1f, 0.1f);
+						spriteBatch.draw(textureDrop, p.getPosition().x, p.getPosition().y, p.getRadius()*2, p.getRadius()*2);
 					}
 					spriteBatch.end();
 				}
@@ -423,7 +426,7 @@ public class Water implements Disposable {
 					shapeBatch.setProjectionMatrix(camera.combined);
 					shapeBatch.begin(ShapeType.Line);
 					for (Particle p : particles) {
-						shapeBatch.rect(p.getPosition().x, p.getPosition().y, 0.05f, 0.05f);
+						shapeBatch.rect(p.getPosition().x, p.getPosition().y, p.getRadius()*2, p.getRadius()*2);
 					}
 					shapeBatch.end();
 				}
