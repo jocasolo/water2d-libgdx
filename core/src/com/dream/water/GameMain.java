@@ -38,7 +38,7 @@ public class GameMain extends ApplicationAdapter {
 		debugRenderer = new Box2DDebugRenderer();
 		
 		water = new Water();
-		water.createBody(world, 4f, 0, 7, 2); //world, x, y, width, height
+		water.createBody(world, 3f, 0, 8, 2); //world, x, y, width, height
 		//water.setDebugMode(true);
 	}
 	
@@ -77,7 +77,7 @@ public class GameMain extends ApplicationAdapter {
 
 		// Create a circle shape and set its radius to 6
 		PolygonShape square = new PolygonShape();
-		square.setAsBox(0.4f, 0.4f);
+		square.setAsBox(0.3f, 0.3f);
 
 		// Create a fixture definition to apply our shape to
 		FixtureDef fixtureDef = new FixtureDef();

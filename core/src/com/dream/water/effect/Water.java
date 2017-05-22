@@ -133,7 +133,7 @@ public class Water implements Disposable {
 		if (waves) {
 			int size = (int) (width / this.columnSparation);
 			columns = new ArrayList<WaterColumn>(size);
-			for (int i = 0; i < size; i++) {
+			for (int i = 0; i < size+1; i++) {
 				float cx = i * this.columnSparation + x - width / 2;
 				columns.add(new WaterColumn(cx, y - height / 2, y + height / 2, y + height / 2, 0));
 			}
