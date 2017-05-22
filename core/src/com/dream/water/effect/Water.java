@@ -17,6 +17,8 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
 import com.badlogic.gdx.math.EarClippingTriangulator;
+import com.badlogic.gdx.math.GeometryUtils;
+import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
@@ -28,9 +30,6 @@ import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.utils.Disposable;
 
 import javafx.util.Pair;
-import math.geom2d.Point2D;
-import math.geom2d.line.StraightLine2D;
-import math.geom2d.polygon.SimplePolygon2D;
 
 /**
  * Allows to create an object to simulate the behavior of water in interaction with other bodies
@@ -160,10 +159,10 @@ public class Water implements Disposable {
 					actualIntersections = IntersectionUtils.copyList(intersectionPoints);
 
 					// find centroid and area
-					SimplePolygon2D interPolygon = IntersectionUtils.getIntersectionPolygon(intersectionPoints);
-					Point2D centroidPoint = interPolygon.centroid();
-					Vector2 centroid = new Vector2((float) centroidPoint.x(), (float) centroidPoint.y());
-					float area = (float) interPolygon.area();
+					Polygon interPolygon = IntersectionUtils.getIntersectionPolygon(intersectionPoints);
+					Vector2 centroid = new Vector2();
+					GeometryUtils.polygonCentroid(interPolygon.getVertices(), 0, interPolygon.getVertices().length, centroid);
+					float area = interPolygon.area();
 
 					// apply buoyancy force (fixtureA is the fluid)
 					float displacedMass = this.density * area;
@@ -271,19 +270,19 @@ public class Water implements Disposable {
 
 			if (column.x() >= minX && column.x() <= maxX) {
 				// column points
-				Point2D col1 = new Point2D(column.x(), column.getHeight());
-				Point2D col2 = new Point2D(column.x(), body.getPosition().y - column.getHeight());
+				Vector2 col1 = new Vector2(column.x(), column.getHeight());
+				Vector2 col2 = new Vector2(column.x(), body.getPosition().y - column.getHeight());
 
 				for (int j = 0; j < intersectionPoints.size() - 1; j++) {
 					// polygon, 1 line points
-					Point2D p1 = new Point2D(intersectionPoints.get(j).x, intersectionPoints.get(j).y);
-					Point2D p2 = null;
+					Vector2 p1 = new Vector2(intersectionPoints.get(j).x, intersectionPoints.get(j).y);
+					Vector2 p2 = null;
 					if (j != intersectionPoints.size() - 1) {
-						p2 = new Point2D(intersectionPoints.get(j + 1).x, intersectionPoints.get(j + 1).y);
+						p2 = new Vector2(intersectionPoints.get(j + 1).x, intersectionPoints.get(j + 1).y);
 					}
 
-					Point2D intersection = StraightLine2D.getIntersection(col1, col2, p1, p2);
-					if (intersection != null && intersection.y() < column.getHeight()) {
+					Vector2 intersection = IntersectionUtils.intersection(col1, col2, p1, p2);
+					if (intersection != null && intersection.y < column.getHeight()) {
 						// column.setHeight((float) intersection.y());
 						if (body.getLinearVelocity().y < 0 && column.getActualBody() == null) {
 							column.setActualBody(body);

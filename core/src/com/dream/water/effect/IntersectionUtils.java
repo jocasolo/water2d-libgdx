@@ -4,13 +4,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Fixture;
 import com.badlogic.gdx.physics.box2d.PolygonShape;
 import com.badlogic.gdx.physics.box2d.Shape;
-
-import math.geom2d.Point2D;
-import math.geom2d.polygon.SimplePolygon2D;
 
 /**
  * Utilities to calculate the intersection between polygons
@@ -44,7 +42,7 @@ public class IntersectionUtils {
 	 * @param cp1 Polygon point 1
 	 * @param cp2 Polygon point 2
 	 * @param p Point to check
-	 * @return Trye if the point is insede of the polygon
+	 * @return True if the point is inside of the polygon
 	 */
 	public static boolean inside(Vector2 cp1, Vector2 cp2, Vector2 p) {
 		return (cp2.x - cp1.x) * (p.y - cp1.y) > (cp2.y - cp1.y) * (p.x - cp1.x);
@@ -126,14 +124,15 @@ public class IntersectionUtils {
 	 * @param vertices Vertices of the polygon
 	 * @return Polygon result
 	 */
-	public static SimplePolygon2D getIntersectionPolygon(List<Vector2> vertices) {
+	public static Polygon getIntersectionPolygon(List<Vector2> vertices) {
 		
-		List<Point2D> points = new ArrayList<Point2D>();
-		for(Vector2 vertex : vertices){
-			points.add(new Point2D(vertex.x, vertex.y));
+		float[] points = new float[vertices.size()*2];
+		for(int i=0, j=0; i< vertices.size(); i++, j+=2){
+			points[j] = vertices.get(i).x;
+			points[j+1] = vertices.get(i).y;
 		}
 		
-		return new SimplePolygon2D(points);
+		return new Polygon(points);
 	}
 	
 	/**
