@@ -22,13 +22,15 @@ It's based on the following tutorials:
 - Bodies tend to move slowly horizontally instead of remaining static.
 
 ## Configuration
-> It's going to assume you already have a **Box2D world** and you just want to add a body that acts like water. If not, I recommend to you follow this tutorial: [Box2D](https://github.com/libgdx/libgdx/wiki/Box2d).
-1. Add the following classes to your project:
+> It will be assumed that you already have a **Box2D world** and you just want to add a body that acts like water. If not, I recommend to you follow this tutorial: [Box2D](https://github.com/libgdx/libgdx/wiki/Box2d).
+1. Add the following classes and assets to your project:
     - **Water:** the core class of the project.
     - **WaterColumn:** for waves simulation.
     - **Particle:** for splash particles
     - **IntersectionUtils:** utils for intersections, centroid, area, etc.
-    
+    - **water.png**
+    - **drop.png**
+   
 2. Create a class that implements **ContactListener** interface and override the methods **beginContact()** and **endContact()** or modify the one you already have as below:
 ```java
 @Override
