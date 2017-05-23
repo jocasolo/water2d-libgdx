@@ -82,3 +82,10 @@ water.update();
 water.draw(camera);
 ```
 You can see how everything is done in the classes **GameMain** and **MyContactListener**.
+
+## Compile and execute
+From the project root folder:
+```
+gradlew desktop:dist
+java -jar desktop\build\libs\desktop-1.0.jar
+```
