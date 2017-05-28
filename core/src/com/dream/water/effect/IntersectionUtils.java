@@ -184,26 +184,4 @@ public class IntersectionUtils {
 		return res;
 	}
 
-	/**
-	 * Obtains the minimal vector resulting between the coordinates of two vectors
-	 * @param a Vector A
-	 * @param b Vector B
-	 * @return Minimal vector among those provided
-	 */
-	public static Vector2 min(Vector2 a, Vector2 b) {
-		return new Vector2(Float.min(a.x, b.x), Float.min(b.x, b.y));
-	}
-	
-	/**
-	 * Copy a list avoiding using references
-	 * @param list List to be copied
-	 * @return A new list copy of the provided
-	 */
-	public static List<Vector2> copyList (List<Vector2> list){
-		List<Vector2> res = new ArrayList<Vector2>();
-		for(Vector2 vector : list){
-			res.add(new Vector2(vector.x, vector.y));
-		}
-		return res;
-	}
 }
