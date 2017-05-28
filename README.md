@@ -17,10 +17,6 @@ It's based on the following tutorials:
 - Interaction with others dynamic Box2D bodies
 - Debug rendering
 
-## Actual problems
-- Doesn't support bodies with a small area. So, the sides of your dynamic bodies must be at least 0.3f height and 0.3f width.
-- Bodies tend to move slowly horizontally instead of remaining static.
-
 ## Configuration
 > It will be assumed that you already have a **Box2D world** and you just want to add a body that acts like water. If not, I recommend to you follow this tutorial: [Box2D](https://github.com/libgdx/libgdx/wiki/Box2d).
 1. Add the following classes and assets to your project:
