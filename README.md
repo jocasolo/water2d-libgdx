@@ -8,7 +8,7 @@ It's based on the following tutorials:
 - [Make a Splash With Dynamic 2D Water Effects](https://gamedevelopment.tutsplus.com/tutorials/make-a-splash-with-dynamic-2d-water-effects--gamedev-236) - by [Michael Hoffman](https://tutsplus.com/authors/michael-hoffman)
 
 ## Final result
-<img src="water.gif" alt="Image missing" width="400"/>
+<img src="https://i.gyazo.com/8524c0abce435da75c4168e2f46dff59.gif" alt="Image missing" width="400"/>
 
 ## Features
 - Buoyancy
