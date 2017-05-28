@@ -56,10 +56,9 @@ public class Water implements Disposable {
 	private float tension = 0.025f;
 	private float dampening = 0.025f;
 	private float spread = 0.25f;
-	private float density = 0.85f;
+	private float density = 1f;
 	
 	private final float columnSparation = 0.04f; // 4 px between every column
-	private final float rotateCorrection = 0.0627f; // Manual correction to prevent rotation of bodies in contact with water
 
 	/**
 	 * Main constructor. Will create an object with the effect of waves and particles by default.
@@ -145,84 +144,102 @@ public class Water implements Disposable {
 	 * gravity by calculating the area in contact, centroid and force required. 
 	 */
 	public void update() {
-		
 		if (body != null && fixturePairs != null) {
 			World world = body.getWorld();
 			for (Pair<Fixture, Fixture> pair : fixturePairs) {
-				Fixture fixtureA = pair.getKey(); // water
-				Fixture fixtureB = pair.getValue(); //dynamic body
-
-				List<Vector2> intersectionPoints = new ArrayList<Vector2>();
-				if (IntersectionUtils.findIntersectionOfFixtures(fixtureA, fixtureB, intersectionPoints)) {
-
-					List<Vector2> actualIntersections = new ArrayList<Vector2>();
-					actualIntersections = IntersectionUtils.copyList(intersectionPoints);
-
+				
+				Fixture fixtureA = pair.getKey();
+				Fixture fixtureB = pair.getValue();
+				
+				List<Vector2> clippedPolygon = new ArrayList<Vector2>();
+				if (IntersectionUtils.findIntersectionOfFixtures(fixtureA, fixtureB, clippedPolygon)) {
+					
 					// find centroid and area
-					Polygon interPolygon = IntersectionUtils.getIntersectionPolygon(intersectionPoints);
+					Polygon interPolygon = IntersectionUtils.getIntersectionPolygon(clippedPolygon);
 					Vector2 centroid = new Vector2();
 					GeometryUtils.polygonCentroid(interPolygon.getVertices(), 0, interPolygon.getVertices().length, centroid);
 					float area = interPolygon.area();
-
+			
+					/* Get fixtures bodies */
+					Body fluidBody = fixtureA.getBody();
+					Body fixtureBody = fixtureB.getBody();
+			
 					// apply buoyancy force (fixtureA is the fluid)
 					float displacedMass = this.density * area;
 					Vector2 buoyancyForce = new Vector2(displacedMass * -world.getGravity().x,
 							displacedMass * -world.getGravity().y);
 					fixtureB.getBody().applyForce(buoyancyForce, centroid, true);
-
+			
 					float dragMod = 0.25f; // adjust as desired
 					float liftMod = 0.25f; // adjust as desired
 					float maxDrag = 2000; // adjust as desired
 					float maxLift = 500; // adjust as desired
-					for (int i = 0; i < intersectionPoints.size(); i++) {
-						Vector2 v0 = intersectionPoints.get(i);
-						Vector2 v1 = intersectionPoints.get((i + 1) % intersectionPoints.size());
-						Vector2 sum = v0.add(v1);
-						Vector2 midPoint = new Vector2(0.5f * sum.x, 0.5f * sum.y);
-
-						// find relative velocity between object and fluid at
-						// edge midpoint
-						Vector2 velDir = fixtureB.getBody().getLinearVelocityFromWorldPoint(midPoint)
-								.sub(fixtureA.getBody().getLinearVelocityFromWorldPoint(midPoint));
-						float vel = velDir.nor().len();
-
-						Vector2 edge = v1.sub(v0);
-						float edgeLength = edge.nor().len();
-						Vector2 normal = new Vector2(-(-1) * edge.y, -1 * edge.x);
-						float dragDot = normal.x * velDir.x + normal.y * velDir.y;
-						if (dragDot < 0)
-							continue;// normal points backwards - this is not a
-										// leading edge
-
-						// apply drag
-						float dragMag = dragDot * dragMod * edgeLength * this.density * vel * vel;
-						dragMag = Float.min(dragMag, maxDrag);
-						Vector2 dragForce = new Vector2(dragMag * -velDir.x, dragMag * -velDir.y);
-						fixtureB.getBody().applyForce(dragForce, midPoint, true);
-
-						// apply lift
-						float liftDot = edge.x * velDir.x + edge.y * velDir.y;
-						float liftMag = dragDot * liftDot * liftMod * edgeLength * this.density * vel * vel;
-						liftMag = Float.min(liftMag, maxLift);
-						Vector2 liftDir = new Vector2(-1 * velDir.y, 1 * velDir.x);
-						Vector2 liftForce = new Vector2(liftMag * liftDir.x, liftMag * liftDir.y);
-						fixtureB.getBody().applyForce(liftForce, midPoint, true);
-
-						// manual rotate correction
-						float angularDrag = area * -fixtureB.getBody().getAngularVelocity() + rotateCorrection;
-						fixtureB.getBody().applyTorque(angularDrag, true);
+					
+					/* Apply drag and lift forces */
+					int polygonVertices = clippedPolygon.size();
+					for (int i = 0; i < polygonVertices; i++) {
+			
+						/* End points and mid point of the edge */
+						Vector2 firstPoint = clippedPolygon.get(i);
+						Vector2 secondPoint = clippedPolygon.get((i + 1) % polygonVertices);
+						Vector2 midPoint = firstPoint.cpy().add(secondPoint).scl(0.5f);
+			
+						/*
+						 * Find relative velocity between the object and the fluid at edge
+						 * mid point.
+						 */
+						Vector2 velocityDirection = new Vector2(fixtureBody
+								.getLinearVelocityFromWorldPoint(midPoint)
+								.sub(fluidBody.getLinearVelocityFromWorldPoint(midPoint)));
+						float velocity = velocityDirection.len();
+						velocityDirection.nor();
+			
+						Vector2 edge = secondPoint.cpy().sub(firstPoint);
+						float edgeLength = edge.len();
+						edge.nor();
+			
+						Vector2 normal = new Vector2(edge.y, -edge.x);
+						float dragDot = normal.dot(velocityDirection);
+			
+						if (dragDot >= 0) {
+			
+							/*
+							 * Normal don't point backwards. This is a leading edge. Store
+							 * the result of multiply edgeLength, density and velocity
+							 * squared
+							 */
+							float tempProduct = edgeLength * density * velocity * velocity;
+			
+							float drag = dragDot * dragMod * tempProduct;
+							drag = Math.min(drag, maxDrag);
+							Vector2 dragForce = velocityDirection.cpy().scl(-drag);
+							fixtureBody.applyForce(dragForce, midPoint, true);
+			
+							/* Apply lift force */
+							float liftDot = edge.dot(velocityDirection);
+							float lift = dragDot * liftDot * liftMod * tempProduct;
+							lift = Math.min(lift, maxLift);
+							Vector2 liftDirection = new Vector2(-velocityDirection.y,
+									velocityDirection.x);
+							Vector2 liftForce = liftDirection.scl(lift);
+							fixtureBody.applyForce(liftForce, midPoint, true);
+							
+							
+							fixtureBody.applyTorque(-fixtureBody.getAngularVelocity()/100, true);
+						}
 					}
-
-					if (waves && area > 0.3f) {
-						updateColumns(fixtureB.getBody(), actualIntersections);
+					
+					if (waves && area > 0.1f) {
+						updateColumns(fixtureB.getBody(), clippedPolygon);
 					}
 				}
 			}
 		}
-
+		
 		if (waves && splashParticles && !particles.isEmpty()) {
 			updateParticles();
 		}
+		
 	}
 
 	/**
@@ -502,10 +519,6 @@ public class Water implements Disposable {
 	
 	public float getColumnSparation() {
 		return columnSparation;
-	}
-
-	public float getRotateCorrection() {
-		return rotateCorrection;
 	}
 
 	public void setTension(float tension) {
