@@ -1,4 +1,4 @@
-package com.dream.water;
+package com.dream.box2d;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
@@ -15,8 +15,7 @@ import com.badlogic.gdx.physics.box2d.PolygonShape;
 import com.badlogic.gdx.physics.box2d.World;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.utils.viewport.StretchViewport;
-import com.dream.water.effect.MyContactListener;
-import com.dream.water.effect.Water;
+import com.dream.box2d.water.Water;
 
 public class GameMain extends ApplicationAdapter {
 

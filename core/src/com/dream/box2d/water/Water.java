@@ -1,4 +1,4 @@
-package com.dream.water.effect;
+package com.dream.box2d.water;
 
 import java.util.ArrayList;
 import java.util.HashSet;

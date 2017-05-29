@@ -1,4 +1,4 @@
-package com.dream.water.effect;
+package com.dream.box2d.water;
 
 import com.badlogic.gdx.physics.box2d.Body;
 

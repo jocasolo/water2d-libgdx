@@ -1,6 +1,7 @@
-package com.dream.water.effect;
+package com.dream.box2d;
 
 import com.badlogic.gdx.physics.box2d.BodyDef.BodyType;
+import com.dream.box2d.water.Water;
 import com.badlogic.gdx.physics.box2d.Contact;
 import com.badlogic.gdx.physics.box2d.ContactImpulse;
 import com.badlogic.gdx.physics.box2d.ContactListener;
